@@ -301,20 +301,30 @@ function parseAgentResponse(text: string): {
   would_buy: boolean;
   biggest_objection: string | null;
 } {
-  // Versuche JSON zu extrahieren — auch aus teilweise kaputtem Output
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  // Markdown-Codeblocks entfernen (```json ... ```)
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+
+  // Versuche JSON zu extrahieren
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    // Kein JSON gefunden — versuche Freitext zu interpretieren
-    const lower = text.toLowerCase();
-    const hasPositive = lower.includes("kaufen") || lower.includes("interessant") || lower.includes("gefällt");
+    // Kein JSON gefunden — versuche aus abgeschnittenem JSON die Felder zu retten
+    const actionMatch = cleaned.match(/"action"\s*:\s*"(\w+)"/);
+    const commentMatch = cleaned.match(/"comment_text"\s*:\s*"([^"]+)"/);
+    const reasoningMatch = cleaned.match(/"internal_reasoning"\s*:\s*"([^"]+)"/);
+    const interestMatch = cleaned.match(/"interest_level"\s*:\s*(\d+)/);
+    const credMatch = cleaned.match(/"credibility_rating"\s*:\s*(\d+)/);
+    const buyMatch = cleaned.match(/"would_buy"\s*:\s*(true|false)/);
+    const objectionMatch = cleaned.match(/"biggest_objection"\s*:\s*"([^"]+)"/);
+
+    const action = actionMatch?.[1] as "like" | "comment" | "share" | "ignore" ?? "ignore";
     return {
-      action: hasPositive ? "comment" : "ignore",
-      comment_text: hasPositive ? text.slice(0, 300) : null,
-      internal_reasoning: text.slice(0, 300) || "Keine JSON-Antwort erhalten.",
-      interest_level: hasPositive ? 6 : 3,
-      credibility_rating: 5,
-      would_buy: false,
-      biggest_objection: null,
+      action: ["like", "comment", "share", "ignore"].includes(action) ? action : "ignore",
+      comment_text: commentMatch?.[1] ?? null,
+      internal_reasoning: reasoningMatch?.[1] ?? commentMatch?.[1] ?? "Antwort konnte nicht vollständig geparst werden.",
+      interest_level: Math.max(1, Math.min(10, Number(interestMatch?.[1]) || 5)),
+      credibility_rating: Math.max(1, Math.min(10, Number(credMatch?.[1]) || 5)),
+      would_buy: buyMatch?.[1] === "true",
+      biggest_objection: objectionMatch?.[1] ?? null,
     };
   }
 
@@ -367,7 +377,7 @@ async function simulateRound(
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
-          max_tokens: 400,
+          max_tokens: 600,
           temperature: 0.8,
           system: agent.systemPrompt,
           messages: [{ role: "user", content: userMessage }],

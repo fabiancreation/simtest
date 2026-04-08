@@ -252,10 +252,10 @@ function BIFeed({ mobile }) {
               {msg.persona}
             </span>
           </div>
-          <div style={{ fontSize: mobile ? 14 : 13, color: C.text, lineHeight: 1.45, fontStyle: "italic" }}>{msg.text}</div>
+          <div style={{ fontSize: mobile ? 12 : 13, color: C.text, lineHeight: 1.4, fontStyle: "italic" }}>{msg.text}</div>
         </div>
       ))}
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 50, background: `linear-gradient(transparent, ${C.bg})`, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 50, background: `linear-gradient(transparent, ${C.bgCard})`, pointerEvents: "none" }} />
     </div>
   );
 }
@@ -628,7 +628,7 @@ export default function LandingPage() {
                   <span>Runde 4/10</span>
                 </div>
               </div>
-              <div style={{ flex: 1, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, minWidth: 0, height: mobile ? 280 : canvasHeight + 44, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div style={{ flex: 1, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, minWidth: 0, height: mobile ? 320 : canvasHeight + 44, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexShrink: 0 }}>
                   <div style={{ display: "flex", gap: 4 }}>
                     {["#ef4444", C.warning, C.accent].map((cl, i) => <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: cl }} />)}

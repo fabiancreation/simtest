@@ -39,13 +39,19 @@ export async function POST(request: Request) {
     copy: "Copy Test", product: "Produkt-Check", pricing: "Pricing Test",
     ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check", crisis: "Krisentest",
   };
+  const presetLabels: Record<string, string> = {
+    dach_allgemein: "DACH", solo_unternehmer: "Solo-Unternehmer", ecom_kaeufer: "E-Com",
+    b2b_entscheider: "B2B", gen_z: "Gen Z",
+  };
   const typeLabel = typeLabels[simType] ?? simType;
+
+  // Content-Snippet
   let snippet = "";
   if (simType === "copy") {
     const variants = (inputData.variants as string[]) ?? [];
     snippet = variants[0]?.slice(0, 50) ?? "";
   } else if (simType === "product" || simType === "pricing") {
-    snippet = ((inputData.offer as string) ?? "").slice(0, 50);
+    snippet = ((inputData.offer as string) ?? "").split("\n")[0]?.slice(0, 50) ?? "";
   } else if (simType === "ad") {
     const ads = (inputData.ad_variants as Array<{ headline?: string }>) ?? [];
     snippet = ads[0]?.headline?.slice(0, 50) ?? "";
@@ -57,7 +63,24 @@ export async function POST(request: Request) {
   } else if (simType === "crisis") {
     snippet = ((inputData.crisis_message as string) ?? "").slice(0, 50);
   }
-  const simName = snippet ? `${typeLabel}: ${snippet}${snippet.length >= 50 ? "..." : ""}` : typeLabel;
+
+  // Zielgruppen-Teil
+  let audienceLabel = "";
+  if (personaPreset) {
+    audienceLabel = presetLabels[personaPreset] ?? personaPreset;
+  } else if (personaId) {
+    const { data: persona } = await supabase
+      .from("persona_profiles")
+      .select("name")
+      .eq("id", personaId)
+      .single();
+    audienceLabel = persona?.name ?? "Eigene Persona";
+  }
+
+  // Name zusammenbauen: "Produkt-Check: Path to Mastery... (Solo-Unternehmer)"
+  const contentPart = snippet ? `: ${snippet}${snippet.length >= 50 ? "..." : ""}` : "";
+  const audiencePart = audienceLabel ? ` (${audienceLabel})` : "";
+  const simName = `${typeLabel}${contentPart}${audiencePart}`;
 
   // Simulation anlegen (status: queued)
   const { data: simulation, error: simError } = await supabase

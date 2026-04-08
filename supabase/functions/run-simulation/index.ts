@@ -164,20 +164,61 @@ function buildAgents(personas: RichPersona[], variants: Variant[]): Agent[] {
 // SIMULATION LOOP
 // ============================================
 
-function buildUserMessage(
-  agent: Agent,
-  variant: Variant,
-  round: number,
-  previousReactions: Reaction[],
-  allAgents: Agent[],
-  platform: string,
-): string {
-  if (round === 1) {
-    return `Du scrollst durch deinen ${platform}-Feed und siehst diesen Post:
+// Kontext-Framing je nach Simulationstyp
+function getSimTypeFraming(simType: string): { scenario: string; scenarioRepeat: string; actionContext: string } {
+  switch (simType) {
+    case "copy":
+      return {
+        scenario: "Du scrollst durch deinen Social-Media-Feed und siehst diesen Post",
+        scenarioRepeat: "Du siehst denselben Post nochmal in deinem Feed",
+        actionContext: "auf diesen Post",
+      };
+    case "product":
+      return {
+        scenario: "Stelle dir vor: Du hast ein konkretes Problem und suchst aktiv nach einer Lösung. Du gehörst genau zur Zielgruppe dieses Angebots. Du stößt auf folgendes Angebot",
+        scenarioRepeat: "Du schaust dir das Angebot nochmal genauer an",
+        actionContext: "auf dieses Angebot",
+      };
+    case "pricing":
+      return {
+        scenario: "Du interessierst dich grundsätzlich für dieses Produkt/diesen Service und vergleichst Preise. Du siehst diese Preisoption",
+        scenarioRepeat: "Du vergleichst die Preise nochmal",
+        actionContext: "auf dieses Preisangebot",
+      };
+    case "ad":
+      return {
+        scenario: "Du scrollst durch deinen Feed und siehst diese Werbeanzeige",
+        scenarioRepeat: "Die gleiche Anzeige wird dir nochmal ausgespielt",
+        actionContext: "auf diese Anzeige",
+      };
+    case "landing":
+      return {
+        scenario: "Du klickst auf einen Link der dich interessiert hat und landest auf dieser Seite",
+        scenarioRepeat: "Du schaust dir die Seite nochmal genauer an",
+        actionContext: "auf diese Landing Page",
+      };
+    case "campaign":
+      return {
+        scenario: "Du begegnest dieser Kampagne über mehrere Kanäle",
+        scenarioRepeat: "Du siehst die Kampagne erneut",
+        actionContext: "auf diese Kampagne",
+      };
+    case "crisis":
+      return {
+        scenario: "Du liest diese Nachricht/Meldung in deinem Feed. Es betrifft eine Marke/ein Unternehmen das du kennst",
+        scenarioRepeat: "Die Nachricht taucht erneut in deinem Feed auf",
+        actionContext: "auf diese Nachricht",
+      };
+    default:
+      return {
+        scenario: "Du siehst folgenden Inhalt",
+        scenarioRepeat: "Du siehst den Inhalt erneut",
+        actionContext: "darauf",
+      };
+  }
+}
 
-"${variant.content}"
-
-Wie reagierst du? Antworte NUR mit diesem JSON (kein anderer Text):
+const JSON_RESPONSE_FORMAT = `Antworte NUR mit diesem JSON (kein anderer Text):
 {
   "action": "like" oder "comment" oder "share" oder "ignore",
   "comment_text": "Dein Kommentar falls action=comment, sonst null",
@@ -185,29 +226,39 @@ Wie reagierst du? Antworte NUR mit diesem JSON (kein anderer Text):
   "interest_level": 1-10,
   "credibility_rating": 1-10
 }`;
+
+function buildUserMessage(
+  agent: Agent,
+  variant: Variant,
+  round: number,
+  previousReactions: Reaction[],
+  allAgents: Agent[],
+  simType: string,
+): string {
+  const framing = getSimTypeFraming(simType);
+
+  if (round === 1) {
+    return `${framing.scenario}:
+
+"${variant.content}"
+
+Wie reagierst du ${framing.actionContext}?
+${JSON_RESPONSE_FORMAT}`;
   }
 
-  // Runde 2+: Nachbar-Reaktionen zeigen
   const neighborReactions = getNeighborReactions(agent, previousReactions, allAgents, round - 1);
 
-  return `Du scrollst weiter durch deinen ${platform}-Feed und siehst denselben Post noch einmal:
+  return `${framing.scenarioRepeat}:
 
 "${variant.content}"
 
 ${neighborReactions.length > 0
     ? `Du siehst diese Reaktionen von Leuten die du kennst:\n${neighborReactions.join("\n")}\n`
-    : "Der Post hat bisher wenig Aufmerksamkeit bekommen."
+    : "Bisher hat kaum jemand darauf reagiert."
   }
 
-Hat sich deine Meinung geändert? Wie reagierst du JETZT?
-Antworte NUR mit diesem JSON (kein anderer Text):
-{
-  "action": "like" oder "comment" oder "share" oder "ignore",
-  "comment_text": "Dein Kommentar falls action=comment, sonst null",
-  "internal_reasoning": "Erkläre kurz WARUM du jetzt so reagierst. Hat das Verhalten der anderen deine Meinung beeinflusst?",
-  "interest_level": 1-10,
-  "credibility_rating": 1-10
-}`;
+Hat sich deine Meinung geändert? Wie reagierst du JETZT ${framing.actionContext}?
+${JSON_RESPONSE_FORMAT}`;
 }
 
 function getNeighborReactions(
@@ -271,7 +322,7 @@ async function simulateRound(
   variants: Variant[],
   round: number,
   previousReactions: Reaction[],
-  defaultPlatform: string,
+  simType: string,
 ): Promise<Reaction[]> {
   const BATCH_SIZE = 10;
   const reactions: Reaction[] = [];
@@ -282,7 +333,7 @@ async function simulateRound(
     const results = await Promise.allSettled(
       batch.map(async (agent) => {
         const variant = variants.find(v => v.id === agent.assignedVariant)!;
-        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, defaultPlatform);
+        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType);
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
@@ -465,12 +516,11 @@ Deno.serve(async (req) => {
 
     // 5. Multi-Runden-Simulation
     const allReactions: Reaction[] = [];
-    const defaultPlatform = presetData?.media_behavior?.primary_platforms?.[0] ?? "Social Media";
 
     for (let round = 1; round <= totalRounds; round++) {
       await supabase.from("simulations").update({ current_round: round }).eq("id", simulationId);
 
-      const roundReactions = await simulateRound(agents, variants, round, allReactions, defaultPlatform);
+      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type);
       allReactions.push(...roundReactions);
 
       // Reaktionen in DB speichern

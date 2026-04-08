@@ -254,7 +254,7 @@ export default function SimulationResultPage() {
         </div>
       </div>
 
-      {/* === Gewinner-Zusammenfassung === */}
+      {/* === Ergebnis-Zusammenfassung === */}
       <div className="animate-slide-up rounded-2xl p-6 relative overflow-hidden" style={{
         animationDelay: "120ms",
         background: "linear-gradient(135deg, var(--color-accent-glow), transparent)",
@@ -262,19 +262,24 @@ export default function SimulationResultPage() {
       }}>
         <div className="flex items-center gap-2 mb-3">
           <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172" />
+            {hasMultipleVariants
+              ? <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172" />
+              : <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            }
           </svg>
-          <span className="text-xs uppercase tracking-wider text-accent" style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>ERGEBNIS</span>
+          <span className="text-xs uppercase tracking-wider text-accent" style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+            {hasMultipleVariants ? "GEWINNER" : "ANALYSE"}
+          </span>
         </div>
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800 }}>
           {hasMultipleVariants
             ? `${winnerVariant?.label ?? "Variante A"} gewinnt`
-            : "Simulations-Ergebnis"
+            : "Zielgruppen-Reaktion"
           }
         </h2>
-        {/* Engagement-Vergleich prominent */}
+        {/* Engagement + Metriken */}
         {winnerVariant && (
-          <div className="flex items-center gap-6 mt-3">
+          <div className="flex items-center gap-6 mt-3 flex-wrap">
             <div>
               <span className="text-3xl font-bold text-accent" style={{ fontFamily: "var(--font-mono)" }}>
                 {Math.round(winnerVariant.engagement_rate * 100)}%
@@ -296,6 +301,15 @@ export default function SimulationResultPage() {
               <span className="text-sm text-text-muted">{fmt(winnerVariant.avg_interest)}/10 Interesse</span>
               <span className="text-xs text-text-dim block">{fmt(winnerVariant.avg_credibility)}/10 Glaubwürdigkeit</span>
             </div>
+          </div>
+        )}
+        {/* Single-Variante: Action-Aufschlüsselung direkt in der Card */}
+        {!hasMultipleVariants && winnerVariant && (
+          <div className="flex gap-4 mt-4 text-xs text-text-dim flex-wrap" style={{ fontFamily: "var(--font-mono)" }}>
+            {winnerVariant.like_count > 0 && <span>{winnerVariant.like_count} Like{winnerVariant.like_count !== 1 ? "s" : ""}</span>}
+            {winnerVariant.comment_count > 0 && <span>{winnerVariant.comment_count} Kommentar{winnerVariant.comment_count !== 1 ? "e" : ""}</span>}
+            {winnerVariant.share_count > 0 && <span>{winnerVariant.share_count} Share{winnerVariant.share_count !== 1 ? "s" : ""}</span>}
+            {winnerVariant.ignore_count > 0 && <span>{winnerVariant.ignore_count} ignoriert</span>}
           </div>
         )}
       </div>

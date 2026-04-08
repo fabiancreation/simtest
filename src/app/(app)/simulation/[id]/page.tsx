@@ -371,7 +371,7 @@ export default function SimulationResultPage() {
             </div>
           )}
         </div>
-      )
+      )}
 
       {/* === Key Insights === */}
       {report.key_insights?.length > 0 && (

@@ -40,6 +40,8 @@ export interface Reaction {
   internalReasoning: string;
   interestLevel: number;
   credibilityRating: number;
+  wouldBuy: boolean;
+  biggestObjection: string | null;
 }
 
 export interface VariantReport {

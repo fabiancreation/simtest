@@ -221,10 +221,12 @@ function getSimTypeFraming(simType: string): { scenario: string; scenarioRepeat:
 const JSON_RESPONSE_FORMAT = `Antworte NUR mit diesem JSON (kein anderer Text):
 {
   "action": "like" oder "comment" oder "share" oder "ignore",
-  "comment_text": "Dein Kommentar falls action=comment, sonst null",
-  "internal_reasoning": "Erkläre kurz in 1-2 Sätzen WARUM du so reagierst.",
+  "comment_text": "Dein Kommentar falls action=comment, sonst null. Beginne NICHT mit 'Interessant' oder 'Klingt interessant'. Schreibe so wie DU wirklich reden würdest.",
+  "internal_reasoning": "Was denkst du WIRKLICH? Sei konkret und ehrlich. Nenne das größte Problem ODER den stärksten Kaufgrund aus DEINER Perspektive.",
   "interest_level": 1-10,
-  "credibility_rating": 1-10
+  "credibility_rating": 1-10,
+  "would_buy": true oder false,
+  "biggest_objection": "Dein wichtigster Einwand in einem Satz, oder null wenn keiner"
 }`;
 
 function buildUserMessage(
@@ -296,6 +298,8 @@ function parseAgentResponse(text: string): {
   internal_reasoning: string;
   interest_level: number;
   credibility_rating: number;
+  would_buy: boolean;
+  biggest_objection: string | null;
 } {
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -311,9 +315,11 @@ function parseAgentResponse(text: string): {
       internal_reasoning: parsed.internal_reasoning || "Keine Begründung.",
       interest_level: Math.max(1, Math.min(10, Number(parsed.interest_level) || 5)),
       credibility_rating: Math.max(1, Math.min(10, Number(parsed.credibility_rating) || 5)),
+      would_buy: parsed.would_buy === true,
+      biggest_objection: parsed.biggest_objection || null,
     };
   } catch {
-    return { action: "ignore", comment_text: null, internal_reasoning: "Parse-Fehler.", interest_level: 5, credibility_rating: 5 };
+    return { action: "ignore", comment_text: null, internal_reasoning: "Parse-Fehler.", interest_level: 5, credibility_rating: 5, would_buy: false, biggest_objection: null };
   }
 }
 
@@ -338,6 +344,7 @@ async function simulateRound(
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 400,
+          temperature: 0.95,
           system: agent.systemPrompt,
           messages: [{ role: "user", content: userMessage }],
         })) as { content: Array<{ type: string; text?: string }> };
@@ -354,6 +361,8 @@ async function simulateRound(
           internalReasoning: parsed.internal_reasoning,
           interestLevel: parsed.interest_level,
           credibilityRating: parsed.credibility_rating,
+          wouldBuy: parsed.would_buy,
+          biggestObjection: parsed.biggest_objection,
         } as Reaction;
       }),
     );
@@ -414,6 +423,87 @@ function extractRawVariants(simType: string, inputData: Record<string, unknown>)
       return [msg];
     }
     default: return [];
+  }
+}
+
+// ============================================
+// AI-SYNTHESE
+// ============================================
+
+async function generateSynthesis(
+  variants: Variant[],
+  allReactions: Reaction[],
+  agents: Agent[],
+  simType: string,
+): Promise<{ summary: string; recommendations: string[]; objection_clusters: string[]; buy_rate: number }> {
+  // Daten für den Synthese-Prompt aufbereiten
+  const buyCount = allReactions.filter(r => r.wouldBuy).length;
+  const totalCount = allReactions.length;
+  const buyRate = totalCount > 0 ? buyCount / totalCount : 0;
+
+  // Top-Einwände clustern
+  const objections = allReactions
+    .map(r => r.biggestObjection)
+    .filter((o): o is string => o !== null && o.length > 0);
+
+  // Reaktions-Zusammenfassung pro Variante
+  const variantSummaries = variants.map(v => {
+    const vReactions = allReactions.filter(r => r.variantId === v.id);
+    const vBuy = vReactions.filter(r => r.wouldBuy).length;
+    const reasonings = vReactions
+      .map(r => `- ${agents.find(a => a.index === r.agentIndex)?.persona.name ?? "Agent"} (${r.action}, ${r.interestLevel}/10): ${r.internalReasoning}`)
+      .slice(0, 15);
+    const vObjections = vReactions.map(r => r.biggestObjection).filter(Boolean).slice(0, 10);
+
+    return `VARIANTE ${v.id} "${v.label}":
+Content: "${v.content.slice(0, 200)}${v.content.length > 200 ? "..." : ""}"
+Kaufbereitschaft: ${vBuy}/${vReactions.length} (${Math.round(vBuy / Math.max(1, vReactions.length) * 100)}%)
+Reaktionen:
+${reasonings.join("\n")}
+Häufigste Einwände: ${vObjections.join(" | ")}`;
+  });
+
+  const typeContext = simType === "product" ? "ein Produktangebot"
+    : simType === "pricing" ? "verschiedene Preispunkte"
+    : simType === "copy" ? "Textvarianten"
+    : simType === "ad" ? "Werbeanzeigen"
+    : simType === "crisis" ? "eine Krisensituation"
+    : "Content";
+
+  const response = await withRetry(() => anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1500,
+    system: `Du bist ein erfahrener Marktforschungs-Analyst. Analysiere die Reaktionen von KI-Personas auf ${typeContext} und gib konkrete, umsetzbare Empfehlungen. Schreibe auf Deutsch. Antworte NUR als JSON.`,
+    messages: [{
+      role: "user",
+      content: `${totalCount} Personas aus der Zielgruppe haben auf ${typeContext} reagiert.
+
+${variantSummaries.join("\n\n---\n\n")}
+
+Erstelle eine Analyse als JSON:
+{
+  "summary": "3-5 Sätze: Was sagt die Zielgruppe? Was ist die Kernaussage? Sei direkt und konkret, nicht generisch.",
+  "recommendations": ["3-5 konkrete, umsetzbare Empfehlungen. Jede beginnt mit einem Verb (Ergänze..., Entferne..., Teste..., Füge hinzu...). Beziehe dich auf die tatsächlichen Einwände."],
+  "objection_clusters": ["Die 3-4 häufigsten Einwand-Kategorien, jeweils in einem kurzen Satz zusammengefasst"]
+}
+
+Nur JSON, keine Erklärungen.`,
+    }],
+  })) as { content: Array<{ type: string; text?: string }> };
+
+  const text = response.content[0].type === "text" ? (response.content[0].text ?? "") : "";
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Kein JSON");
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      summary: parsed.summary ?? "",
+      recommendations: parsed.recommendations ?? [],
+      objection_clusters: parsed.objection_clusters ?? [],
+      buy_rate: buyRate,
+    };
+  } catch {
+    return { summary: "", recommendations: [], objection_clusters: [], buy_rate: buyRate };
   }
 }
 
@@ -540,15 +630,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 6. Report generieren (lokal, kein API-Call)
+    // 6. Report generieren (lokal)
     const report = generateReport(agents, allReactions, variants);
 
-    // 7. Ergebnis speichern (abwärtskompatibel + neues Format)
+    // 7. AI-Synthese (1 Haiku-Call für Zusammenfassung + Empfehlungen)
+    const synthesis = await generateSynthesis(variants, allReactions, agents, sim.sim_type);
+
+    // 8. Ergebnis speichern
     await supabase.from("simulations").update({
       status: "completed",
       completed_at: new Date().toISOString(),
       result_data: {
         report,
+        synthesis,
         // Legacy-kompatible Felder für bestehendes Frontend
         variantStats: variants.map((v, vi) => {
           const vr = allReactions.filter(r => r.variantId === v.id);

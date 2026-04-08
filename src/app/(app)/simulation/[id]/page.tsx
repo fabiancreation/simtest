@@ -64,6 +64,12 @@ interface SimData {
   input_data: Record<string, unknown>;
   result_data: {
     report: NewReport;
+    synthesis?: {
+      summary: string;
+      recommendations: string[];
+      objection_clusters: string[];
+      buy_rate: number;
+    };
     variantStats: LegacyVariantStats[];
   } | null;
 }
@@ -195,11 +201,13 @@ export default function SimulationResultPage() {
     );
   }
 
+  const synthesis = sim.result_data?.synthesis;
   const winnerVariant = report.variants?.find(v => v.variant_id === report.winner);
   const winnerIndex = winnerVariant ? report.variants.indexOf(winnerVariant) : 0;
   const loserVariant = report.variants?.find(v => v.variant_id !== report.winner);
   const conf = CONFIDENCE_LABELS[report.confidence] ?? CONFIDENCE_LABELS.medium;
   const hasMultipleVariants = (report.variants?.length ?? 0) > 1;
+  const buyRate = synthesis?.buy_rate ?? 0;
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -306,16 +314,64 @@ export default function SimulationResultPage() {
             </div>
           </div>
         )}
-        {/* Single-Variante: Action-Aufschlüsselung direkt in der Card */}
-        {!hasMultipleVariants && winnerVariant && (
-          <div className="flex gap-4 mt-4 text-xs text-text-dim flex-wrap" style={{ fontFamily: "var(--font-mono)" }}>
-            {winnerVariant.like_count > 0 && <span>{winnerVariant.like_count} Like{winnerVariant.like_count !== 1 ? "s" : ""}</span>}
-            {winnerVariant.comment_count > 0 && <span>{winnerVariant.comment_count} Kommentar{winnerVariant.comment_count !== 1 ? "e" : ""}</span>}
-            {winnerVariant.share_count > 0 && <span>{winnerVariant.share_count} Share{winnerVariant.share_count !== 1 ? "s" : ""}</span>}
-            {winnerVariant.ignore_count > 0 && <span>{winnerVariant.ignore_count} ignoriert</span>}
+        {/* Kaufbereitschaft + Actions */}
+        {winnerVariant && (
+          <div className="flex gap-6 mt-4 flex-wrap">
+            {buyRate > 0 && (
+              <div>
+                <span className="text-2xl font-bold" style={{ fontFamily: "var(--font-mono)", color: buyRate > 0.5 ? "var(--color-accent)" : buyRate > 0.2 ? "var(--color-warning)" : "var(--color-red)" }}>
+                  {Math.round(buyRate * 100)}%
+                </span>
+                <span className="text-xs text-text-dim block" style={{ fontFamily: "var(--font-mono)" }}>würden kaufen</span>
+              </div>
+            )}
+            <div className="flex gap-3 items-end text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
+              {winnerVariant.like_count > 0 && <span>{winnerVariant.like_count} Like{winnerVariant.like_count !== 1 ? "s" : ""}</span>}
+              {winnerVariant.comment_count > 0 && <span>{winnerVariant.comment_count} Kommentar{winnerVariant.comment_count !== 1 ? "e" : ""}</span>}
+              {winnerVariant.share_count > 0 && <span>{winnerVariant.share_count} Share{winnerVariant.share_count !== 1 ? "s" : ""}</span>}
+              {winnerVariant.ignore_count > 0 && <span>{winnerVariant.ignore_count} ignoriert</span>}
+            </div>
           </div>
         )}
       </div>
+
+      {/* === AI-Synthese: Zusammenfassung + Empfehlungen === */}
+      {synthesis?.summary && (
+        <div className="card p-6 animate-slide-up" style={{ animationDelay: "140ms" }}>
+          <h3 className="mb-3" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Zusammenfassung</h3>
+          <p className="text-sm text-text-muted leading-relaxed">{synthesis.summary}</p>
+
+          {synthesis.objection_clusters?.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-2.5" style={{ fontFamily: "var(--font-mono)" }}>Häufigste Einwände</h4>
+              <div className="space-y-2">
+                {synthesis.objection_clusters.map((obj, i) => (
+                  <div key={i} className="flex gap-2.5 items-start text-sm">
+                    <span className="text-red mt-0.5 shrink-0">!</span>
+                    <span className="text-text-muted">{obj}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {synthesis.recommendations?.length > 0 && (
+            <div className="mt-5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-2.5" style={{ fontFamily: "var(--font-mono)" }}>Empfehlungen</h4>
+              <div className="space-y-2">
+                {synthesis.recommendations.map((rec, i) => (
+                  <div key={i} className="flex gap-2.5 items-start text-sm">
+                    <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold" style={{
+                      background: "var(--color-accent-glow)", color: "var(--color-accent)", fontFamily: "var(--font-mono)",
+                    }}>{i + 1}</span>
+                    <span className="text-text-muted">{rec}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )
 
       {/* === Key Insights === */}
       {report.key_insights?.length > 0 && (

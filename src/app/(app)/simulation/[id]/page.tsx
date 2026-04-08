@@ -232,22 +232,24 @@ export default function SimulationResultPage() {
         <div className="space-y-3">
           {variantTexts.map((text, i) => {
             const varId = String.fromCharCode(65 + i);
-            const isWinner = varId === report.winner;
+            const isWinner = hasMultipleVariants && varId === report.winner;
             return (
               <div key={i} className="rounded-xl p-4" style={{
                 border: `1.5px solid ${isWinner ? "var(--color-accent)" : "var(--color-border)"}`,
                 background: isWinner ? "var(--color-accent-glow)" : "transparent",
               }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded" style={{
-                    fontFamily: "var(--font-mono)",
-                    background: isWinner ? "var(--color-accent)" : "var(--color-border)",
-                    color: isWinner ? "white" : "var(--color-text-dim)",
-                  }}>
-                    {varId}
-                  </span>
-                  {isWinner && <span className="text-xs text-accent font-semibold">Gewinner</span>}
-                </div>
+                {hasMultipleVariants && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded" style={{
+                      fontFamily: "var(--font-mono)",
+                      background: isWinner ? "var(--color-accent)" : "var(--color-border)",
+                      color: isWinner ? "white" : "var(--color-text-dim)",
+                    }}>
+                      {varId}
+                    </span>
+                    {isWinner && <span className="text-xs text-accent font-semibold">Gewinner</span>}
+                  </div>
+                )}
                 <p className="text-sm text-text-muted leading-relaxed whitespace-pre-line">{text}</p>
               </div>
             );
@@ -432,14 +434,16 @@ export default function SimulationResultPage() {
             {report.variants.map(v => (
               v.top_comments?.length > 0 && (
                 <div key={v.variant_id}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{
-                      fontFamily: "var(--font-mono)",
-                      background: v.variant_id === report.winner ? "var(--color-accent)" : "var(--color-border)",
-                      color: v.variant_id === report.winner ? "white" : "var(--color-text-dim)",
-                    }}>{v.variant_id}</span>
-                    <span className="text-xs text-text-dim">{v.label}</span>
-                  </div>
+                  {hasMultipleVariants && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{
+                        fontFamily: "var(--font-mono)",
+                        background: v.variant_id === report.winner ? "var(--color-accent)" : "var(--color-border)",
+                        color: v.variant_id === report.winner ? "white" : "var(--color-text-dim)",
+                      }}>{v.variant_id}</span>
+                      <span className="text-xs text-text-dim">{v.label}</span>
+                    </div>
+                  )}
                   <div className="space-y-3 ml-1">
                     {v.top_comments.map((c, i) => (
                       <div key={i} className="flex gap-3 items-start">

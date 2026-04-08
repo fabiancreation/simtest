@@ -247,7 +247,7 @@ function deriveKeyInsights(
     insights.push(`Segment "${pi.segment}" bevorzugt "${pi.preferred_variant}": ${pi.reason}`);
   }
 
-  if (confidence === "low" && totalEngagement >= 0.1) {
+  if (confidence === "low" && totalEngagement >= 0.1 && variantReports.length > 1) {
     insights.push(
       "Geringe Konfidenz: Die Unterschiede zwischen den Varianten sind klein. Für belastbarere Ergebnisse die Simulation mit mehr Agenten wiederholen."
     );

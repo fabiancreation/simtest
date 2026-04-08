@@ -301,9 +301,24 @@ function parseAgentResponse(text: string): {
   would_buy: boolean;
   biggest_objection: string | null;
 } {
+  // Versuche JSON zu extrahieren — auch aus teilweise kaputtem Output
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    // Kein JSON gefunden — versuche Freitext zu interpretieren
+    const lower = text.toLowerCase();
+    const hasPositive = lower.includes("kaufen") || lower.includes("interessant") || lower.includes("gefällt");
+    return {
+      action: hasPositive ? "comment" : "ignore",
+      comment_text: hasPositive ? text.slice(0, 300) : null,
+      internal_reasoning: text.slice(0, 300) || "Keine JSON-Antwort erhalten.",
+      interest_level: hasPositive ? 6 : 3,
+      credibility_rating: 5,
+      would_buy: false,
+      biggest_objection: null,
+    };
+  }
+
   try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Kein JSON");
     const parsed = JSON.parse(jsonMatch[0]);
 
     const validActions = ["like", "comment", "share", "ignore"];
@@ -311,15 +326,24 @@ function parseAgentResponse(text: string): {
 
     return {
       action,
-      comment_text: action === "comment" ? (parsed.comment_text || "...") : null,
-      internal_reasoning: parsed.internal_reasoning || "Keine Begründung.",
-      interest_level: Math.max(1, Math.min(10, Number(parsed.interest_level) || 5)),
-      credibility_rating: Math.max(1, Math.min(10, Number(parsed.credibility_rating) || 5)),
-      would_buy: parsed.would_buy === true,
-      biggest_objection: parsed.biggest_objection || null,
+      comment_text: action === "comment" ? (parsed.comment_text || parsed.commentText || "...") : null,
+      internal_reasoning: parsed.internal_reasoning || parsed.reasoning || "Keine Begründung.",
+      interest_level: Math.max(1, Math.min(10, Number(parsed.interest_level || parsed.interest) || 5)),
+      credibility_rating: Math.max(1, Math.min(10, Number(parsed.credibility_rating || parsed.credibility) || 5)),
+      would_buy: parsed.would_buy === true || parsed.wouldBuy === true,
+      biggest_objection: parsed.biggest_objection || parsed.objection || null,
     };
   } catch {
-    return { action: "ignore", comment_text: null, internal_reasoning: "Parse-Fehler.", interest_level: 5, credibility_rating: 5, would_buy: false, biggest_objection: null };
+    // JSON kaputt — Freitext als Reasoning nutzen
+    return {
+      action: "comment",
+      comment_text: null,
+      internal_reasoning: text.slice(0, 300),
+      interest_level: 5,
+      credibility_rating: 5,
+      would_buy: false,
+      biggest_objection: null,
+    };
   }
 }
 
@@ -344,7 +368,7 @@ async function simulateRound(
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 400,
-          temperature: 0.95,
+          temperature: 0.8,
           system: agent.systemPrompt,
           messages: [{ role: "user", content: userMessage }],
         })) as { content: Array<{ type: string; text?: string }> };

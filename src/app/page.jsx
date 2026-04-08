@@ -219,13 +219,13 @@ function BIFeed({ mobile }) {
     { persona: "Pricing-Analyse · SaaS-Tool", color: C.purple, level: "Ebene 2", text: "\"Sweet Spot bei €34–37/Mo. Ab €49 bricht die Conversion um 38% ein.\"" },
     { persona: "Markteintritt · DACH-Strategie", color: C.accent, level: "Ebene 3", text: "\"B2B via LinkedIn empfohlen. Direktvertrieb zu langsam für diese Buyer Persona.\"" },
   ];
-  const [vc, setVc] = useState(0);
+  const [vc, setVc] = useState(1);
   useEffect(() => {
     if (vc < messages.length) {
       const t = setTimeout(() => setVc(v => v + 1), 2500);
       return () => clearTimeout(t);
     } else {
-      const t = setTimeout(() => setVc(0), 3000);
+      const t = setTimeout(() => setVc(1), 4000);
       return () => clearTimeout(t);
     }
   }, [vc]);
@@ -233,7 +233,7 @@ function BIFeed({ mobile }) {
   const levelColor = { "Ebene 1": C.blue, "Ebene 2": C.purple, "Ebene 3": C.accent };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: mobile ? 280 : 360, overflow: "hidden", position: "relative" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%", overflow: "hidden", position: "relative" }}>
       {messages.slice(0, vc).map((msg, i) => (
         <div key={`${i}-${vc}`} style={{
           background: C.bgCard, border: `1px solid ${C.border}`,

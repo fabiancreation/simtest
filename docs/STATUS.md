@@ -3,138 +3,114 @@
 > Stand: 8. April 2026
 > Deployed: Vercel (via GitHub `fabiancreation/simtest`, auto-deploy auf main)
 > Supabase: Shared mit Funnel Architect (Ref: `ajrshllvafqpbdhxhgsh`)
+> Edge Function: `run-simulation` deployed (150s Timeout)
 
 ---
 
-## Was gebaut wurde
+## Was gebaut wurde (diese Session)
 
-### 1. Landing Page (`src/app/page.jsx`)
-- **Komplett fertig**, deployed, responsive (Mobile/Tablet/Desktop)
-- Light/Dark Mode mit Toggle
-- Animierter Agent Canvas (Partikel-Simulation mit Physik)
-- Insight Stream (BIFeed: Ebene 1 → 2 → 3, Loop)
-- 4-Ebenen-Showcase mit interaktiven Tabs
-- How-it-Works (4 Schritte)
-- Persona-Builder Highlight Section
-- Ehrlichkeits-Section ("SimTest ersetzt keine echte Marktforschung")
-- Pricing mit monatlich/jährlich Toggle (Free, Starter €12, Pro €34, Business €89)
-- Waitlist mit Social Proof (Avatar-Stack + Counter)
-- SVG Icons durchgehend (keine Emojis)
-- prefers-reduced-motion Support
-- Kontrastwerte WCAG AA+ im Light Mode
+### Backend — Kern-Infrastruktur
+- **Waitlist-Backend** — Tabelle `waitlist`, API-Route `/api/waitlist`, Frontend angebunden
+- **Password-Login** — Login-Page erweitert (Passwort + Magic Link + Google OAuth toggle)
+- **Plan-Trennung** — `simtest_plan` Spalte (getrennt von Funnel Architect `plan`)
+- **User-Setup** — `fabian@simtest.com` angelegt, `business` Plan, 9999 Runs
 
-### 2. Auth (`src/app/(auth)/`)
-- **Login-Page** mit Magic Link + Google OAuth UI
-- **Callback-Route** für Auth-Code-Exchange
-- **Middleware** schützt `/dashboard/*` Routen
-- Supabase SSR Client (Client/Server/Middleware)
+### Simulation — End-to-End Flow
+- **7 Simulationstypen** — Copy, Produkt, Pricing, Ad Creative, Landing Page, Kampagne, Krisentest
+- **Dynamische Eingabeseite** `/simulation/new` — Felder passen sich an den Typ an
+- **Persona-Builder v2** `/personas/new` — Quick-Mode + Experten-Wizard (5 Schritte)
+- **AI-Enrichment** `/api/personas/enrich` — Claude Haiku füllt leere Persona-Felder auf
+- **Persona-Presets** — 4 Presets (Solo-Unternehmer, E-Com, B2B, Gen Z) mit vollständigen Daten
+- **Supabase Edge Function** `run-simulation` — Simulation async (150s statt 10s Vercel-Timeout)
+- **Ergebnis-Seite** `/simulation/[id]` — Polling, Report mit Gewinner, Stats, Einwände, Vorschläge
+- **Dashboard** — Zeigt neue Simulationen + alte Runs zusammen, verlinkt zu Reports
 
-### 3. App-Seiten (`src/app/(app)/`)
-- **Dashboard** — Kontingent-Anzeige, letzte Runs, CTA für neue Simulation
-- **Personas** — Persona-Profile verwalten, Generierungs-Formular
-- **Run/New** — Stimulus-Input (Typ-Wahl, Varianten-Editor, Profil-Auswahl, Kontext)
-- **Run/[id]** — Live-View mit Polling, Auto-Redirect bei Fertigstellung
-- **Run/[id]/Report** — Gewinner, Zusammenfassung, Sentiment-Bars, Alters-Engagement, Einwände, Vorschläge
-- **Settings** — Konto-Info, Plan-Anzeige (Upgrade-Button deaktiviert)
-- **Sidebar** — Navigation mit aktiven States, Logout
+### UI/UX — Komplettes Redesign
+- **Styleguide** — Abgeleitet aus Landing Page (Outfit/Inter/JetBrains Mono, Emerald-Akzent)
+- **Light Mode Default** + Dark Mode Toggle (localStorage, kein Flash)
+- **Sidebar** — Logo mit Glow, Mobile Hamburger-Menü, Theme-Toggle
+- **Alle App-Seiten** überarbeitet (Dashboard, Personas, Run, Report, Settings, Login)
+- **Wiederverwendbare CSS-Klassen** — `.card`, `.stat-card`, `.btn-primary`, `.badge`, `.input`
 
-### 4. Simulation Core (`src/lib/simulation/`)
-- **generatePersonas.ts** — Claude Haiku generiert Personas aus Zielgruppen-Beschreibung
-- **runSimulation.ts** — Jede Persona reagiert auf jede Variante (batched, 5 parallel)
-- **generateReport.ts** — Analyse-Report mit Gewinner, Einwände, Vorschläge, Alters-Segmente
+### Datenbank
+- `waitlist` Tabelle (002)
+- `simtest_plan` Spalte auf profiles (003)
+- `simulations` + `simulation_files` Tabellen (004)
+- 20+ neue Spalten auf `persona_profiles` für v2 (005)
 
-### 5. API-Routen (`src/app/api/`)
-- `POST /api/personas/generate` — Personas generieren + in DB speichern
-- `POST /api/runs/create` — Kontingent prüfen, Run anlegen, Simulation + Report ausführen
-- `GET /api/runs/[id]/status` — Run-Status abfragen
+---
 
-### 6. Datenbank (Supabase)
-- **Migration ausgeführt** (`supabase/migrations/001_initial_schema.sql`)
-- Tabellen: `profiles`, `persona_profiles`, `runs`, `reports`, `usage_events`
-- RLS-Policies auf allen Tabellen
-- Auto-Profil-Trigger bei neuer Registrierung
-- Indizes auf `runs.user_id`, `runs.status`, `reports.run_id`, `persona_profiles.user_id`
+## Was funktioniert (getestet)
 
-### 7. Infrastruktur
-- Next.js 14 + TypeScript + Tailwind
-- Supabase (Auth + PostgreSQL + RLS)
-- Anthropic Claude Haiku als LLM (Persona + Reaktionen + Report)
-- GitHub `fabiancreation/simtest` → Vercel Auto-Deploy
-- `.env.local` mit Supabase + Anthropic Keys
+- ✅ Login mit Passwort (fabian@simtest.com)
+- ✅ Persona erstellen (Preset + AI-Enrichment)
+- ✅ Copy Testing Simulation (5 Agenten, 2 Varianten)
+- ✅ Report-Anzeige mit Gewinner, Sentiment, Vorschlägen
+- ✅ Dashboard zeigt Simulationen mit Status + Links zu Reports
+- ✅ Waitlist speichert E-Mails
+- ✅ Light/Dark Mode
 
 ---
 
 ## Was NICHT funktioniert / fehlt
 
-### Backend — Kritisch für ersten echten Test
+### Priorität 1 — Für echten Nutzer-Test
 
 | # | Aufgabe | Status | Beschreibung |
 |---|---------|--------|-------------|
-| B1 | **Supabase Auth konfigurieren** | ❌ Offen | Google OAuth Provider + Magic Link im Supabase Dashboard aktivieren. Redirect-URLs auf Vercel-Domain setzen. |
-| B2 | **Run als Background-Job** | ❌ Offen | Aktuell läuft die Simulation synchron in der API-Route (kann >30s dauern → Vercel Timeout). Braucht async Processing. |
-| B3 | **Supabase Realtime für Job-Status** | ❌ Offen | Aktuell Polling per GET. Besser: Supabase Realtime Subscription auf `runs.status`. |
-| B4 | **Persona-Caching** | ❌ Offen | Gleiche Zielgruppen-Beschreibung → gleiche Personas. Cache per `(user_id + description_hash)`, TTL 30 Tage. |
-| B5 | **Error Handling & Retry** | ❌ Offen | API-Calls an Claude können fehlschlagen. Retry-Logik mit Backoff fehlt. |
-| B6 | **Rate Limiting** | ❌ Offen | Kein Schutz gegen API-Missbrauch. Braucht Rate Limiter pro User. |
-| B7 | **Runs-Reset monatlich** | ❌ Offen | `runs_used` wird nie zurückgesetzt. Braucht Cron-Job oder Supabase Edge Function. |
+| P1 | **Persona-Presets Backend** | ❌ Offen | Presets auf /simulation/new generieren Personas on-the-fly, aber ungetestet. Eigene Persona funktioniert. |
+| P2 | **Mehr Simulationstypen testen** | ❌ Offen | Nur Copy Testing getestet. Produkt, Pricing, Ad, Kampagne, Krisen müssen getestet werden. |
+| P3 | **Error Handling verbessern** | ❌ Offen | Edge Function Fehler werden nicht ans Frontend kommuniziert. |
+| P4 | **Simulation-Redirect** | ❌ Offen | Nach Submit auf /simulation/new → Redirect zu /simulation/[id] prüfen |
 
-### Backend — Phase 2
+### Priorität 2 — Qualität & Features
 
 | # | Aufgabe | Status | Beschreibung |
 |---|---------|--------|-------------|
-| B8 | **Stripe Integration** | ❌ Offen | Subscriptions (Starter/Pro/Business), Webhooks, Plan-Upgrade/Downgrade |
-| B9 | **Waitlist-Backend** | ❌ Offen | E-Mail-Adressen speichern (aktuell nur Frontend-State, geht beim Reload verloren) |
-| B10 | **PDF-Export** | ❌ Offen | Report als PDF generieren und downloaden |
-| B11 | **E-Mail-Notifications** | ❌ Offen | "Run fertig", "Kontingent niedrig" |
+| Q1 | **Landing Page Crawling** | ❌ Offen | Landing Page Test schickt nur URL als Text, kein echtes Crawling |
+| Q2 | **Supabase Realtime** | ❌ Offen | Aktuell Polling (3s), besser: Realtime Subscription auf simulations.status |
+| Q3 | **Persona-Caching** | ❌ Offen | Gleiche Beschreibung → gleiche Personas. Cache per description_hash |
+| Q4 | **Error Handling + Retry** | ❌ Offen | Retry-Logik für Claude API Calls mit Backoff |
+| Q5 | **Rate Limiting** | ❌ Offen | Kein Schutz gegen API-Missbrauch |
+| Q6 | **Runs-Reset monatlich** | ❌ Offen | runs_used wird nie zurückgesetzt |
+| Q7 | **File-Uploads** | ❌ Offen | Ad Creative + Kampagne: Bild-Upload UI existiert im Konzept, nicht implementiert |
 
-### Frontend — Verbesserungen
+### Priorität 3 — Phase 2
 
 | # | Aufgabe | Status | Beschreibung |
 |---|---------|--------|-------------|
-| F1 | **Mobile Nav** | ❌ Offen | Hamburger-Menü für App-Sidebar auf Mobile |
-| F2 | **Onboarding** | ❌ Offen | 3-Schritt-Tour für neue Nutzer |
-| F3 | **Landing Page Copy** | 🔄 In Arbeit | Hero-Copy und Nav können noch verbessert werden |
+| S1 | **Stripe Integration** | ❌ Offen | Subscriptions, Webhooks, Plan-Upgrade |
+| S2 | **PDF-Export** | ❌ Offen | Report als PDF downloaden |
+| S3 | **E-Mail-Notifications** | ❌ Offen | "Simulation fertig" per E-Mail |
 
 ---
 
-## Empfohlene Reihenfolge für Backend
+## Architektur
 
-### Sofort (für ersten echten Test)
-
-1. **B1: Supabase Auth konfigurieren** — Ohne Auth kein Login, ohne Login kein Test
-2. **B9: Waitlist-Backend** — Einfache Tabelle `waitlist(email, created_at)`, Insert per API-Route
-3. **B2: Background-Jobs** — Simulation async auslagern, damit Vercel nicht abbricht
-   - Option A: Vercel Background Functions (Pro Plan, bis 5min)
-   - Option B: Supabase Edge Functions
-   - Option C: Upstash QStash (Webhook-basiert, kein eigener Server)
-
-### Danach
-
-4. **B3: Realtime Status** — Supabase Realtime statt Polling
-5. **B4: Persona-Caching** — Hash auf Beschreibung, spart API-Kosten
-6. **B5: Error Handling** — Retry-Logik für Claude API
-7. **B6: Rate Limiting** — Upstash Redis oder Middleware-basiert
-8. **B7: Monthly Reset** — Supabase Cron oder Vercel Cron
-
----
-
-## Architektur-Entscheidungen
-
-| Entscheidung | Gewählt | Grund |
+| Komponente | Technologie | Status |
 |---|---|---|
-| LLM | Claude Haiku 4.5 | API-Key vorhanden, günstig, schnell |
-| DB | Supabase (shared) | Free Tier Limit, 2 Projekte belegt |
-| Hosting | Vercel | Auto-Deploy, Edge Functions, kein Setup |
-| Job Queue | Noch offen | Vercel BG Functions vs. QStash vs. Edge Functions |
-| Payments | Stripe (geplant) | Standard für SaaS |
+| Frontend | Next.js 16 + TypeScript + Tailwind | ✅ Deployed |
+| Auth | Supabase Auth (Password + Magic Link) | ✅ Funktioniert |
+| DB | Supabase PostgreSQL (shared) | ✅ Funktioniert |
+| LLM | Claude Haiku 4.5 (Personas + Reaktionen + Report) | ✅ Funktioniert |
+| Simulation | Supabase Edge Function (150s Timeout) | ✅ Deployed |
+| Hosting | Vercel Free Plan | ✅ Deployed |
+| Payments | Stripe (geplant) | ❌ Phase 2 |
 
 ---
 
-## Dateien die ungenutzt sind (Cleanup)
+## Wichtige Dateien
 
-- `src/lib/openai/client.ts` — War für GPT-4o-mini, jetzt Claude
-- `src/lib/gemini/client.ts` — War für Gemini Flash, jetzt Claude
-- `public/file.svg`, `public/globe.svg`, `public/next.svg`, `public/vercel.svg`, `public/window.svg` — Next.js Boilerplate
+| Datei | Zweck |
+|---|---|
+| `src/app/(app)/simulation/new/page.tsx` | Neue Simulation (7 Typen, dynamische Felder) |
+| `src/app/(app)/simulation/[id]/page.tsx` | Ergebnis-Seite (Polling + Report) |
+| `src/app/(app)/personas/new/page.tsx` | Persona-Builder v2 (Quick + Expert) |
+| `src/app/api/simulations/create/route.ts` | API: Erstellt Sim + ruft Edge Function |
+| `src/app/api/personas/enrich/route.ts` | API: AI-Enrichment für Personas |
+| `supabase/functions/run-simulation/index.ts` | Edge Function: Führt Simulation aus |
+| `src/types/simulation.ts` | Alle Types + SimType Config + Presets |
+| `docs/STYLEGUIDE.md` | Design-Tokens + Komponenten-Regeln |
 
 ---
 

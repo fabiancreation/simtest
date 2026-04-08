@@ -20,9 +20,12 @@
 - **Dynamische Eingabeseite** `/simulation/new` — Felder passen sich an den Typ an
 - **Persona-Builder v2** `/personas/new` — Quick-Mode + Experten-Wizard (5 Schritte)
 - **AI-Enrichment** `/api/personas/enrich` — Claude Haiku füllt leere Persona-Felder auf
-- **Persona-Presets** — 4 Presets (Solo-Unternehmer, E-Com, B2B, Gen Z) mit vollständigen Daten
-- **Supabase Edge Function** `run-simulation` — Simulation async (150s statt 10s Vercel-Timeout)
-- **Ergebnis-Seite** `/simulation/[id]` — Polling, Report mit Gewinner, Stats, Einwände, Vorschläge
+- **Persona-Presets v2** — 5 Rich Presets (DACH, Solo, E-Com, B2B, Gen Z) mit Big Five, Subtypes, statistischen Verteilungen, Network Topology, Platform Behavior. Lokale Generierung ohne API-Call.
+- **Simulations-Engine v2** — Multi-Runden-Loop mit sozialer Beeinflussung. Agenten sehen Nachbar-Reaktionen in Runde 2+. Neues Reaktionsmodell: like/comment/share/ignore + interest_level + credibility_rating.
+- **Network Builder** — 4 Topologien: Small World (Solo), Scale Free (E-Com), Hierarchical Cluster (B2B), Scale Free Dense (Gen Z), Random (DACH).
+- **Report-Generator v2** — Engagement-Raten, Persona-Insights nach Big-Five-Segmenten, Runden-Progression, Key Insights, Konfidenz-Level, Top-Kommentare.
+- **Supabase Edge Function** `run-simulation` — 5 Module (index.ts, presets.ts, network.ts, report.ts, types.ts). Simulation async (150s Timeout).
+- **Ergebnis-Seite v2** `/simulation/[id]` — Realtime Updates, Runden-Fortschritt, neues Report-Layout mit Kommentaren, Persona-Analyse, Konfidenz-Badge. Abwärtskompatibel mit alten Simulationen.
 - **Dashboard** — Zeigt neue Simulationen + alte Runs zusammen, verlinkt zu Reports
 
 ### UI/UX — Komplettes Redesign
@@ -58,9 +61,9 @@
 
 | # | Aufgabe | Status | Beschreibung |
 |---|---------|--------|-------------|
-| P1 | **Persona-Presets Backend** | ❌ Offen | Presets auf /simulation/new generieren Personas on-the-fly, aber ungetestet. Eigene Persona funktioniert. |
-| P2 | **Mehr Simulationstypen testen** | ❌ Offen | Nur Copy Testing getestet. Produkt, Pricing, Ad, Kampagne, Krisen müssen getestet werden. |
-| P3 | **Error Handling verbessern** | ❌ Offen | Edge Function Fehler werden nicht ans Frontend kommuniziert. |
+| P1 | **Persona-Presets Backend** | ✅ Überarbeitet | Rich Presets mit Big Five, Subtypes, statistischen Verteilungen. Lokale Generierung ohne API-Call. 5 Presets (DACH, Solo, E-Com, B2B, Gen Z). |
+| P2 | **Mehr Simulationstypen testen** | ❌ Offen | Nur Copy Testing getestet. Neue Engine muss mit allen 7 Typen getestet werden. |
+| P3 | **Error Handling verbessern** | ✅ Fertig | `error_message` Spalte, Edge Function speichert Fehler, Frontend zeigt sie an, Polling stoppt bei failed. |
 | P4 | **Simulation-Redirect** | ❌ Offen | Nach Submit auf /simulation/new → Redirect zu /simulation/[id] prüfen |
 
 ### Priorität 2 — Qualität & Features
@@ -68,9 +71,9 @@
 | # | Aufgabe | Status | Beschreibung |
 |---|---------|--------|-------------|
 | Q1 | **Landing Page Crawling** | ❌ Offen | Landing Page Test schickt nur URL als Text, kein echtes Crawling |
-| Q2 | **Supabase Realtime** | ❌ Offen | Aktuell Polling (3s), besser: Realtime Subscription auf simulations.status |
-| Q3 | **Persona-Caching** | ❌ Offen | Gleiche Beschreibung → gleiche Personas. Cache per description_hash |
-| Q4 | **Error Handling + Retry** | ❌ Offen | Retry-Logik für Claude API Calls mit Backoff |
+| Q2 | **Supabase Realtime** | ✅ Fertig | Polling durch Supabase Realtime Subscription ersetzt. Publication auf simulations aktiviert. |
+| Q3 | **Persona-Caching** | ✅ Fertig | `persona_cache` Tabelle mit (user_id, description_hash, agent_count). Edge Function prüft Cache vor Generierung. |
+| Q4 | **Error Handling + Retry** | ✅ Fertig | `withRetry()` mit Exponential Backoff (3 Versuche, 1s/2s/4s) für alle Anthropic-Calls. |
 | Q5 | **Rate Limiting** | ❌ Offen | Kein Schutz gegen API-Missbrauch |
 | Q6 | **Runs-Reset monatlich** | ❌ Offen | runs_used wird nie zurückgesetzt |
 | Q7 | **File-Uploads** | ❌ Offen | Ad Creative + Kampagne: Bild-Upload UI existiert im Konzept, nicht implementiert |

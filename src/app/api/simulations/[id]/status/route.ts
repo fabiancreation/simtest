@@ -15,7 +15,7 @@ export async function GET(
 
   const { data: sim } = await supabase
     .from("simulations")
-    .select("id, sim_type, status, agent_count, sim_depth, created_at, completed_at, result_data, input_data")
+    .select("id, sim_type, status, agent_count, sim_depth, created_at, completed_at, result_data, input_data, error_message, current_round, total_rounds")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();

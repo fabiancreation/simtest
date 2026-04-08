@@ -1,74 +1,100 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.102.1";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.85.0";
+import { PRESETS, generatePersonasFromPreset, type RichPersona } from "./presets.ts";
+import { buildNetwork } from "./network.ts";
+import { generateReport } from "./report.ts";
+import type { Agent, Reaction, Variant } from "./types.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
-// --- Types ---
+// ============================================
+// RETRY
+// ============================================
 
-interface Persona {
-  name: string;
-  age: number;
-  occupation: string;
-  location: string;
-  personality: string;
-  values: string[];
-  pain_points: string[];
-  buy_triggers: string[];
-  objections: string[];
-  media_consumption: string;
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isRetryable = err instanceof Error && (
+        err.message.includes("overloaded") ||
+        err.message.includes("rate_limit") ||
+        err.message.includes("529") ||
+        err.message.includes("500") ||
+        err.message.includes("timeout")
+      );
+      if (!isRetryable || attempt === maxRetries) throw err;
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      console.log(`Retry ${attempt + 1}/${maxRetries} nach ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Retry fehlgeschlagen");
 }
 
-interface AgentReaction {
-  persona: Persona;
-  variantIndex: number;
-  reaction: string;
-  sentiment: "positiv" | "neutral" | "negativ";
-  wouldEngage: boolean;
+// ============================================
+// PERSONA CACHE
+// ============================================
+
+async function hashDescription(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text.trim().toLowerCase());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-interface VariantStats {
-  variantIndex: number;
-  totalAgents: number;
-  positiv: number;
-  neutral: number;
-  negativ: number;
-  engagementRate: number;
+async function getCachedPersonas(userId: string, description: string, count: number): Promise<RichPersona[] | null> {
+  const hash = await hashDescription(description);
+  const { data } = await supabase
+    .from("persona_cache").select("personas")
+    .eq("user_id", userId).eq("description_hash", hash).eq("agent_count", count)
+    .maybeSingle();
+  return data?.personas ?? null;
 }
 
-// --- Persona Generation ---
+async function cachePersonas(userId: string, description: string, count: number, personas: RichPersona[]): Promise<void> {
+  const hash = await hashDescription(description);
+  await supabase.from("persona_cache").upsert({
+    user_id: userId, description_hash: hash, agent_count: count, personas,
+  }, { onConflict: "user_id,description_hash,agent_count" });
+}
 
-async function generatePersonas(description: string, count: number): Promise<Persona[]> {
-  const response = await anthropic.messages.create({
+// ============================================
+// LEGACY PERSONA GENERATION (für Custom-Beschreibungen)
+// ============================================
+
+async function generatePersonasViaAPI(description: string, count: number): Promise<RichPersona[]> {
+  const response = await withRetry(() => anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 4096,
     system: `Du generierst KI-Personas für Marktforschungs-Simulationen.
-Antworte NUR als JSON-Array. Keine Erklärungen, kein Markdown.
-Beginne direkt mit [ und ende mit ].`,
+Antworte NUR als JSON-Array. Keine Erklärungen, kein Markdown. Beginne direkt mit [ und ende mit ].`,
     messages: [{
       role: "user",
       content: `Generiere ${count} realistische deutsche Personas für folgende Zielgruppe:
 ${description}
 
-Jede Persona als JSON-Objekt mit exakt diesen Feldern:
+Jede Persona als JSON-Objekt:
 {
-  "name": "Vorname Nachname",
-  "age": Zahl,
-  "occupation": "Beruf",
-  "location": "Stadt, Bundesland",
+  "name": "Vorname Nachname", "age": Zahl, "gender": "männlich"/"weiblich"/"divers",
+  "occupation": "Beruf", "location": "Stadt", "region_type": "großstadt"/"mittelstadt"/"kleinstadt"/"ländlich",
+  "education": "Bildungsgrad", "income_monthly": Zahl,
   "personality": "2-3 Sätze",
+  "big_five": {"openness": 1-10, "conscientiousness": 1-10, "extraversion": 1-10, "agreeableness": 1-10, "neuroticism": 1-10},
   "values": ["Wert1", "Wert2", "Wert3"],
   "pain_points": ["Problem1", "Problem2"],
-  "buy_triggers": ["Auslöser1", "Auslöser2"],
-  "objections": ["Einwand1", "Einwand2"],
-  "media_consumption": "1 Satz"
+  "buying_triggers": ["Auslöser1", "Auslöser2"],
+  "buying_blockers": ["Einwand1", "Einwand2"],
+  "media_primary": ["Plattform1", "Plattform2"],
+  "trust_sources": ["Quelle1", "Quelle2"]
 }`,
     }],
-  });
+  }));
 
   const text = response.content[0].type === "text" ? response.content[0].text : "";
   const arrayMatch = text.match(/\[[\s\S]*\]/);
@@ -76,154 +102,237 @@ Jede Persona als JSON-Objekt mit exakt diesen Feldern:
   return JSON.parse(arrayMatch[0]);
 }
 
-// --- Simulation ---
+// ============================================
+// AGENT BUILDER
+// ============================================
 
-async function getReaction(
-  persona: Persona, stimulus: string, stimulusType: string,
-  variantIndex: number, contextLayer?: string
-): Promise<AgentReaction> {
-  const typeLabel = stimulusType === "copy" ? "einen Werbetext"
-    : stimulusType === "product" ? "ein Produktangebot"
-    : "eine Geschäftsstrategie";
+function buildSystemPrompt(persona: RichPersona): string {
+  const lines: string[] = [];
+  lines.push(`Du bist ${persona.name}, ${persona.age} Jahre alt, ${persona.gender}, ${persona.occupation} aus ${persona.location}.`);
 
-  const prompt = `Du bist ${persona.name}, ${persona.age} Jahre alt, ${persona.occupation} aus ${persona.location}.
-Persönlichkeit: ${persona.personality}
-Deine Werte: ${persona.values.join(", ")}
-Deine größten Probleme: ${persona.pain_points.join(", ")}
-Du kaufst wenn: ${persona.buy_triggers.join(", ")}
-Deine typischen Einwände: ${persona.objections.join(", ")}
+  if (persona.big_five) {
+    const bf = persona.big_five;
+    lines.push(`Persönlichkeit (Big Five): Offenheit ${bf.openness}/10, Gewissenhaftigkeit ${bf.conscientiousness}/10, Extraversion ${bf.extraversion}/10, Verträglichkeit ${bf.agreeableness}/10, Neurotizismus ${bf.neuroticism}/10.`);
+  }
+  if (persona.personality) lines.push(`Charakter: ${persona.personality}`);
+  if (persona.subtype) lines.push(`Typ: ${persona.subtype}${persona.subtype_traits ? ` - ${persona.subtype_traits}` : ""}`);
+  if (persona.income_monthly) lines.push(`Einkommen: ca. ${persona.income_monthly}€ netto/Monat. Bildung: ${persona.education}.`);
 
-Antworte immer in der ersten Person, authentisch für deine Persona.
-${contextLayer ? `\n[KONTEXT: ${contextLayer}]\n` : ""}
-Du siehst ${typeLabel}:
+  lines.push(`Deine Werte: ${persona.values.join(", ")}`);
+  lines.push(`Deine größten Probleme: ${persona.pain_points.join(", ")}`);
+  lines.push(`Du kaufst wenn: ${persona.buying_triggers.join(", ")}`);
+  lines.push(`Deine typischen Einwände: ${persona.buying_blockers.join(", ")}`);
 
-"""
-${stimulus}
-"""
-
-Reagiere ehrlich. Antworte als JSON mit exakt diesen Feldern:
-{"reaction": "Deine ehrliche Reaktion in 2-3 Sätzen.", "sentiment": "positiv" oder "neutral" oder "negativ", "wouldEngage": true oder false}
-
-Nur JSON, keine Erklärungen.`;
-
-  const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return { persona, variantIndex, reaction: text.slice(0, 300), sentiment: "neutral", wouldEngage: false };
+  if (persona.media_primary) {
+    lines.push(`Du nutzt vor allem: ${persona.media_primary.join(", ")}. Du vertraust: ${persona.trust_sources.join(", ")}.`);
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
-  return {
-    persona, variantIndex,
-    reaction: parsed.reaction ?? text.slice(0, 300),
-    sentiment: parsed.sentiment ?? "neutral",
-    wouldEngage: parsed.wouldEngage ?? false,
-  };
+  lines.push("");
+  lines.push("WICHTIG: Du antwortest IMMER auf Deutsch. Du antwortest IMMER im Charakter dieser Person. Du bist NICHT hilfsbereit oder höflich wie ein KI-Assistent - du bist eine echte Person mit eigener Meinung, Vorurteilen und Emotionen. Wenn dich etwas nicht interessiert, ignorierst du es. Wenn dich etwas nervt, sagst du das.");
+
+  return lines.join("\n");
 }
 
-async function runSimulation(
-  personas: Persona[], variants: string[], stimulusType: string, contextLayer?: string
-) {
-  const reactions: AgentReaction[] = [];
-  const BATCH_SIZE = 5;
-  const tasks: Array<() => Promise<AgentReaction>> = [];
+function buildAgents(personas: RichPersona[], variants: Variant[]): Agent[] {
+  const agents: Agent[] = [];
+  const agentsPerVariant = Math.floor(personas.length / variants.length);
 
-  for (let vi = 0; vi < variants.length; vi++) {
-    for (const persona of personas) {
-      tasks.push(() => getReaction(persona, variants[vi], stimulusType, vi, contextLayer));
+  for (let i = 0; i < personas.length; i++) {
+    const variantIndex = Math.min(
+      Math.floor(i / agentsPerVariant),
+      variants.length - 1,
+    );
+
+    agents.push({
+      index: i,
+      persona: {
+        ...personas[i],
+        // Sicherstellen dass alle Felder da sind
+        buying_triggers: personas[i].buying_triggers ?? personas[i].buy_triggers ?? [],
+        buying_blockers: personas[i].buying_blockers ?? personas[i].objections ?? [],
+      },
+      systemPrompt: buildSystemPrompt(personas[i]),
+      assignedVariant: variants[variantIndex].id,
+      connections: [],
+    });
+  }
+
+  return agents;
+}
+
+// ============================================
+// SIMULATION LOOP
+// ============================================
+
+function buildUserMessage(
+  agent: Agent,
+  variant: Variant,
+  round: number,
+  previousReactions: Reaction[],
+  allAgents: Agent[],
+  platform: string,
+): string {
+  if (round === 1) {
+    return `Du scrollst durch deinen ${platform}-Feed und siehst diesen Post:
+
+"${variant.content}"
+
+Wie reagierst du? Antworte NUR mit diesem JSON (kein anderer Text):
+{
+  "action": "like" oder "comment" oder "share" oder "ignore",
+  "comment_text": "Dein Kommentar falls action=comment, sonst null",
+  "internal_reasoning": "Erkläre kurz in 1-2 Sätzen WARUM du so reagierst.",
+  "interest_level": 1-10,
+  "credibility_rating": 1-10
+}`;
+  }
+
+  // Runde 2+: Nachbar-Reaktionen zeigen
+  const neighborReactions = getNeighborReactions(agent, previousReactions, allAgents, round - 1);
+
+  return `Du scrollst weiter durch deinen ${platform}-Feed und siehst denselben Post noch einmal:
+
+"${variant.content}"
+
+${neighborReactions.length > 0
+    ? `Du siehst diese Reaktionen von Leuten die du kennst:\n${neighborReactions.join("\n")}\n`
+    : "Der Post hat bisher wenig Aufmerksamkeit bekommen."
+  }
+
+Hat sich deine Meinung geändert? Wie reagierst du JETZT?
+Antworte NUR mit diesem JSON (kein anderer Text):
+{
+  "action": "like" oder "comment" oder "share" oder "ignore",
+  "comment_text": "Dein Kommentar falls action=comment, sonst null",
+  "internal_reasoning": "Erkläre kurz WARUM du jetzt so reagierst. Hat das Verhalten der anderen deine Meinung beeinflusst?",
+  "interest_level": 1-10,
+  "credibility_rating": 1-10
+}`;
+}
+
+function getNeighborReactions(
+  agent: Agent,
+  previousReactions: Reaction[],
+  allAgents: Agent[],
+  targetRound: number,
+): string[] {
+  const descriptions: string[] = [];
+
+  for (const neighborIdx of agent.connections) {
+    const neighbor = allAgents[neighborIdx];
+    if (!neighbor || neighbor.assignedVariant !== agent.assignedVariant) continue;
+
+    const reaction = previousReactions.find(
+      r => r.agentIndex === neighborIdx && r.round === targetRound,
+    );
+    if (!reaction) continue;
+
+    const vorname = neighbor.persona.name.split(" ")[0];
+    switch (reaction.action) {
+      case "like": descriptions.push(`- ${vorname} hat den Post geliked.`); break;
+      case "comment": descriptions.push(`- ${vorname} hat kommentiert: "${reaction.commentText}"`); break;
+      case "share": descriptions.push(`- ${vorname} hat den Post geteilt.`); break;
+      // ignore: nicht zeigen (wie in echtem Social Media)
     }
   }
 
-  for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
-    const batch = tasks.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map(fn => fn()));
-    for (const result of results) {
-      if (result.status === "fulfilled") reactions.push(result.value);
-    }
-  }
+  return descriptions.slice(0, 5); // Max 5 um Context klein zu halten
+}
 
-  const variantStats: VariantStats[] = variants.map((_, vi) => {
-    const vr = reactions.filter(r => r.variantIndex === vi);
-    const total = vr.length;
+function parseAgentResponse(text: string): {
+  action: "like" | "comment" | "share" | "ignore";
+  comment_text: string | null;
+  internal_reasoning: string;
+  interest_level: number;
+  credibility_rating: number;
+} {
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Kein JSON");
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    const validActions = ["like", "comment", "share", "ignore"];
+    const action = validActions.includes(parsed.action) ? parsed.action : "ignore";
+
     return {
-      variantIndex: vi, totalAgents: total,
-      positiv: vr.filter(r => r.sentiment === "positiv").length,
-      neutral: vr.filter(r => r.sentiment === "neutral").length,
-      negativ: vr.filter(r => r.sentiment === "negativ").length,
-      engagementRate: total > 0 ? vr.filter(r => r.wouldEngage).length / total : 0,
+      action,
+      comment_text: action === "comment" ? (parsed.comment_text || "...") : null,
+      internal_reasoning: parsed.internal_reasoning || "Keine Begründung.",
+      interest_level: Math.max(1, Math.min(10, Number(parsed.interest_level) || 5)),
+      credibility_rating: Math.max(1, Math.min(10, Number(parsed.credibility_rating) || 5)),
     };
-  });
-
-  return { reactions, variantStats };
+  } catch {
+    return { action: "ignore", comment_text: null, internal_reasoning: "Parse-Fehler.", interest_level: 5, credibility_rating: 5 };
+  }
 }
 
-// --- Report Generation ---
+async function simulateRound(
+  agents: Agent[],
+  variants: Variant[],
+  round: number,
+  previousReactions: Reaction[],
+  defaultPlatform: string,
+): Promise<Reaction[]> {
+  const BATCH_SIZE = 10;
+  const reactions: Reaction[] = [];
 
-async function generateReport(variants: string[], result: { reactions: AgentReaction[]; variantStats: VariantStats[] }) {
-  const variantSummaries = result.variantStats.map((vs, i) => {
-    const reactions = result.reactions
-      .filter(r => r.variantIndex === i)
-      .map(r => `- ${r.persona.name} (${r.sentiment}): "${r.reaction}"`)
-      .join("\n");
-    return `VARIANTE ${i + 1}:\n"""${variants[i]}"""\nPositiv: ${vs.positiv} | Neutral: ${vs.neutral} | Negativ: ${vs.negativ} | Engagement: ${(vs.engagementRate * 100).toFixed(0)}%\n\nReaktionen:\n${reactions}`;
-  });
+  for (let i = 0; i < agents.length; i += BATCH_SIZE) {
+    const batch = agents.slice(i, i + BATCH_SIZE);
 
-  const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
-    system: "Du bist ein Marktforschungs-Analyst. Erstelle präzise, actionable Reports auf Deutsch. Antworte nur als JSON.",
-    messages: [{
-      role: "user",
-      content: `Analysiere die folgenden Simulations-Ergebnisse:\n\n${variantSummaries.join("\n\n---\n\n")}\n\nErstelle einen Report als JSON:\n{"winnerIndex": 0-basiert, "summary": "3-5 Sätze", "topObjections": ["3 häufigste Einwände"], "topPraises": ["3 häufigste positive Punkte"], "improvementSuggestions": ["3-5 Vorschläge"]}\n\nNur JSON.`,
-    }],
-  });
+    const results = await Promise.allSettled(
+      batch.map(async (agent) => {
+        const variant = variants.find(v => v.id === agent.assignedVariant)!;
+        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, defaultPlatform);
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Kein JSON in Report");
+        const response = await withRetry(() => anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 400,
+          system: agent.systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        })) as { content: Array<{ type: string; text?: string }> };
 
-  const parsed = JSON.parse(jsonMatch[0]);
+        const text = response.content[0].type === "text" ? (response.content[0].text ?? "") : "";
+        const parsed = parseAgentResponse(text);
 
-  // Age segments
-  const ranges = [{ label: "18-29", min: 18, max: 29 }, { label: "30-44", min: 30, max: 44 }, { label: "45-59", min: 45, max: 59 }, { label: "60+", min: 60, max: 120 }];
-  const engagementByAge = ranges.map(range => {
-    const inRange = result.reactions.filter(r => r.persona.age >= range.min && r.persona.age <= range.max);
-    if (inRange.length === 0) return null;
-    const engaged = inRange.filter(r => r.wouldEngage).length;
-    const sentiments = { positiv: 0, neutral: 0, negativ: 0 };
-    inRange.forEach(r => sentiments[r.sentiment]++);
-    const dominant = Object.entries(sentiments).sort(([, a], [, b]) => b - a)[0][0];
-    return { ageRange: range.label, engagementRate: engaged / inRange.length, dominantSentiment: dominant };
-  }).filter(Boolean);
+        return {
+          agentIndex: agent.index,
+          round,
+          variantId: agent.assignedVariant,
+          action: parsed.action,
+          commentText: parsed.comment_text,
+          internalReasoning: parsed.internal_reasoning,
+          interestLevel: parsed.interest_level,
+          credibilityRating: parsed.credibility_rating,
+        } as Reaction;
+      }),
+    );
 
-  return {
-    winnerIndex: parsed.winnerIndex ?? 0,
-    summary: parsed.summary ?? "Kein Summary verfügbar.",
-    segmentBreakdown: {
-      byVariant: result.variantStats,
-      topObjections: parsed.topObjections ?? [],
-      topPraises: parsed.topPraises ?? [],
-      engagementByAge,
-    },
-    improvementSuggestions: parsed.improvementSuggestions ?? [],
-  };
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        reactions.push(result.value);
+      } else {
+        console.error("Agent-Call fehlgeschlagen:", result.reason);
+      }
+    }
+  }
+
+  return reactions;
 }
 
-// --- Variant Extraction ---
+// ============================================
+// VARIANT EXTRACTION
+// ============================================
 
-function mapSimType(simType: string): string {
-  if (simType === "copy") return "copy";
-  if (simType === "product" || simType === "pricing") return "product";
-  return "strategy";
+function extractVariants(simType: string, inputData: Record<string, unknown>): Variant[] {
+  const raw = extractRawVariants(simType, inputData);
+  return raw.map((content, i) => ({
+    id: String.fromCharCode(65 + i), // A, B, C, D
+    label: `Variante ${String.fromCharCode(65 + i)}`,
+    content,
+  }));
 }
 
-function extractVariants(simType: string, inputData: Record<string, unknown>): string[] {
+function extractRawVariants(simType: string, inputData: Record<string, unknown>): string[] {
   switch (simType) {
     case "copy": return (inputData.variants as string[]) ?? [];
     case "product": {
@@ -257,24 +366,15 @@ function extractVariants(simType: string, inputData: Record<string, unknown>): s
   }
 }
 
-// --- Preset Descriptions ---
-
-const PRESET_DESCRIPTIONS: Record<string, string> = {
-  dach_allgemein: "Breiter Querschnitt der deutschsprachigen Bevölkerung, 25-55 Jahre, verschiedene Berufe und Lebenssituationen.",
-  solo_unternehmer: "Selbstständige im Bereich Coaching, Beratung und Training. Online aktiv, bauen Personal Brand auf.",
-  ecom_kaeufer: "Menschen die regelmäßig online einkaufen. Vergleichen Preise, lesen Bewertungen, reagieren auf Social Proof.",
-  b2b_entscheider: "Geschäftsführer und Teamleads in KMUs. ROI-orientiert, wenig Zeit, treffen Kaufentscheidungen.",
-  gen_z: "18-27 Jahre, digital native, werteorientiert, skeptisch gegenüber klassischer Werbung.",
-};
-
 // ============================================
 // EDGE FUNCTION HANDLER
 // ============================================
 
 Deno.serve(async (req) => {
-  // CORS
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
+    return new Response("ok", {
+      headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" },
+    });
   }
 
   try {
@@ -283,36 +383,53 @@ Deno.serve(async (req) => {
 
     // 1. Simulation laden
     const { data: sim, error: simErr } = await supabase
-      .from("simulations")
-      .select("*")
-      .eq("id", simulationId)
-      .single();
+      .from("simulations").select("*").eq("id", simulationId).single();
 
     if (simErr || !sim) throw new Error("Simulation nicht gefunden");
     if (sim.status !== "queued") throw new Error(`Status ist '${sim.status}', erwartet 'queued'`);
 
-    // Status auf running setzen
-    await supabase.from("simulations").update({ status: "running", started_at: new Date().toISOString() }).eq("id", simulationId);
+    const totalRounds = sim.total_rounds ?? 1;
+
+    await supabase.from("simulations").update({
+      status: "running",
+      started_at: new Date().toISOString(),
+      total_rounds: totalRounds,
+      current_round: 0,
+    }).eq("id", simulationId);
 
     // 2. Personas laden/generieren
-    let personas: Persona[] = [];
+    let personas: RichPersona[] = [];
 
     if (sim.persona_id) {
       const { data: profile } = await supabase
-        .from("persona_profiles")
-        .select("personas, description")
-        .eq("id", sim.persona_id)
-        .single();
+        .from("persona_profiles").select("personas, description")
+        .eq("id", sim.persona_id).single();
 
       if (profile?.personas?.length) {
         personas = profile.personas;
       } else if (profile?.description) {
-        personas = await generatePersonas(profile.description, sim.agent_count);
+        const cached = await getCachedPersonas(sim.user_id, profile.description, sim.agent_count);
+        if (cached) {
+          personas = cached;
+        } else {
+          personas = await generatePersonasViaAPI(profile.description, sim.agent_count);
+          await cachePersonas(sim.user_id, profile.description, sim.agent_count, personas);
+        }
         await supabase.from("persona_profiles").update({ personas, agent_count_default: sim.agent_count }).eq("id", sim.persona_id);
       }
     } else if (sim.persona_preset) {
-      const desc = PRESET_DESCRIPTIONS[sim.persona_preset] ?? PRESET_DESCRIPTIONS.dach_allgemein;
-      personas = await generatePersonas(desc, sim.agent_count);
+      const preset = PRESETS[sim.persona_preset];
+      if (preset) {
+        const cacheKey = `preset:${sim.persona_preset}`;
+        const cached = await getCachedPersonas(sim.user_id, cacheKey, sim.agent_count);
+        personas = cached ?? generatePersonasFromPreset(preset, sim.agent_count);
+        if (!cached) await cachePersonas(sim.user_id, cacheKey, sim.agent_count, personas);
+      } else {
+        personas = await generatePersonasViaAPI(
+          `Breiter Querschnitt der deutschsprachigen Bevölkerung, 25-55 Jahre.`,
+          sim.agent_count,
+        );
+      }
     }
 
     if (personas.length === 0) throw new Error("Keine Personas verfügbar");
@@ -322,28 +439,81 @@ Deno.serve(async (req) => {
     const variants = extractVariants(sim.sim_type, sim.input_data);
     if (variants.length === 0) throw new Error("Keine Varianten");
 
-    const stimulusType = mapSimType(sim.sim_type);
-    const contextLayer = sim.input_data?.context as string | undefined;
+    // 4. Agenten bauen + Netzwerk
+    const agents = buildAgents(personas, variants);
+    const presetData = PRESETS[sim.persona_preset ?? "dach_allgemein"];
+    const topology = presetData?.network_topology;
+    if (topology) {
+      buildNetwork(agents, topology.type, topology.avg_connections);
+    } else {
+      buildNetwork(agents, "random", 8);
+    }
 
-    // 4. Simulation ausführen
-    const result = await runSimulation(personas, variants, stimulusType, contextLayer);
+    // Agenten in DB speichern
+    const agentRows = agents.map(a => ({
+      simulation_id: simulationId,
+      agent_index: a.index,
+      persona: a.persona,
+      system_prompt: a.systemPrompt,
+      assigned_variant: a.assignedVariant,
+      network_connections: a.connections,
+    }));
+    // Batch insert (max 100 pro Request)
+    for (let i = 0; i < agentRows.length; i += 100) {
+      await supabase.from("agents").insert(agentRows.slice(i, i + 100));
+    }
 
-    // 5. Report generieren
-    const report = await generateReport(variants, result);
+    // 5. Multi-Runden-Simulation
+    const allReactions: Reaction[] = [];
+    const defaultPlatform = presetData?.media_behavior?.primary_platforms?.[0] ?? "Social Media";
 
-    // 6. Ergebnis speichern
+    for (let round = 1; round <= totalRounds; round++) {
+      await supabase.from("simulations").update({ current_round: round }).eq("id", simulationId);
+
+      const roundReactions = await simulateRound(agents, variants, round, allReactions, defaultPlatform);
+      allReactions.push(...roundReactions);
+
+      // Reaktionen in DB speichern
+      const reactionRows = roundReactions.map(r => ({
+        simulation_id: simulationId,
+        agent_index: r.agentIndex,
+        round: r.round,
+        variant_id: r.variantId,
+        action: r.action,
+        comment_text: r.commentText,
+        internal_reasoning: r.internalReasoning,
+        interest_level: r.interestLevel,
+        credibility_rating: r.credibilityRating,
+      }));
+      for (let i = 0; i < reactionRows.length; i += 100) {
+        await supabase.from("reactions").insert(reactionRows.slice(i, i + 100));
+      }
+    }
+
+    // 6. Report generieren (lokal, kein API-Call)
+    const report = generateReport(agents, allReactions, variants);
+
+    // 7. Ergebnis speichern (abwärtskompatibel + neues Format)
     await supabase.from("simulations").update({
       status: "completed",
       completed_at: new Date().toISOString(),
       result_data: {
-        reactions: result.reactions,
-        variantStats: result.variantStats,
-        report: {
-          winnerIndex: report.winnerIndex,
-          summary: report.summary,
-          segmentBreakdown: report.segmentBreakdown,
-          improvementSuggestions: report.improvementSuggestions,
-        },
+        report,
+        // Legacy-kompatible Felder für bestehendes Frontend
+        variantStats: variants.map((v, vi) => {
+          const vr = allReactions.filter(r => r.variantId === v.id);
+          const lastRound = Math.max(1, ...vr.map(r => r.round));
+          const final = vr.filter(r => r.round === lastRound);
+          const total = final.length || 1;
+          return {
+            variantIndex: vi,
+            totalAgents: agents.filter(a => a.assignedVariant === v.id).length,
+            positiv: final.filter(r => r.interestLevel >= 7).length,
+            neutral: final.filter(r => r.interestLevel >= 4 && r.interestLevel < 7).length,
+            negativ: final.filter(r => r.interestLevel < 4).length,
+            engagementRate: final.filter(r => r.action !== "ignore").length / total,
+          };
+        }),
       },
     }).eq("id", simulationId);
 
@@ -355,17 +525,17 @@ Deno.serve(async (req) => {
     const message = err instanceof Error ? err.message : "Unbekannter Fehler";
     console.error("Edge Function error:", message);
 
-    // Versuche Simulation als failed zu markieren
     try {
       const { simulationId } = await req.clone().json();
       if (simulationId) {
-        await supabase.from("simulations").update({ status: "failed" }).eq("id", simulationId);
+        await supabase.from("simulations").update({
+          status: "failed", error_message: message,
+        }).eq("id", simulationId);
       }
     } catch { /* ignore */ }
 
     return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+      status: 500, headers: { "Content-Type": "application/json" },
     });
   }
 });

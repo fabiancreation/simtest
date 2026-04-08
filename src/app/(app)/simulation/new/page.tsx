@@ -242,12 +242,19 @@ export default function NewSimulationPage() {
       <Section number={nextNum()} label="Zielgruppe" hint="Wähle ein Preset oder eine eigene Persona">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {PERSONA_PRESETS.map((p) => {
-            const active = personaPreset === p.id;
+            const isCustom = p.id === "custom";
+            const active = isCustom ? (personaId !== null) : personaPreset === p.id;
             return (
               <button key={p.id} onClick={() => {
-                if (p.id === "custom") {
+                if (isCustom) {
                   setPersonaPreset(null);
-                  // Show custom profiles
+                  // Falls nur eine Persona vorhanden: direkt auswählen
+                  if (customProfiles.length === 1) {
+                    setPersonaId(customProfiles[0].id);
+                    setAgentCount(customProfiles[0].agent_count_default || 200);
+                  } else {
+                    setPersonaId(personaId ?? ""); // Dropdown öffnen
+                  }
                 } else {
                   setPersonaPreset(p.id);
                   setPersonaId(null);
@@ -273,16 +280,31 @@ export default function NewSimulationPage() {
           })}
         </div>
 
-        {/* Custom Persona Profiles */}
-        {!personaPreset && customProfiles.length > 0 && (
-          <div className="mt-3">
-            <select value={personaId ?? ""} onChange={(e) => { setPersonaId(e.target.value || null); setPersonaPreset(null); }}
-              className="input cursor-pointer">
-              <option value="">Eigene Persona wählen...</option>
-              {customProfiles.map(p => (
-                <option key={p.id} value={p.id}>{p.name} ({p.agent_count_default} Agenten)</option>
-              ))}
-            </select>
+        {/* Custom Persona Profiles — sichtbar wenn kein Preset gewählt */}
+        {!personaPreset && (
+          <div className="mt-3 animate-slide-up">
+            {customProfiles.length > 0 ? (
+              <select value={personaId ?? ""} onChange={(e) => {
+                const id = e.target.value || null;
+                setPersonaId(id);
+                setPersonaPreset(null);
+                if (id) {
+                  const profile = customProfiles.find(p => p.id === id);
+                  if (profile?.agent_count_default) setAgentCount(profile.agent_count_default);
+                }
+              }}
+                className="input cursor-pointer">
+                <option value="">Eigene Persona wählen...</option>
+                {customProfiles.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.agent_count_default} Agenten)</option>
+                ))}
+              </select>
+            ) : (
+              <div className="card p-4 flex items-center justify-between">
+                <p className="text-sm text-text-muted">Du hast noch keine eigenen Personas erstellt.</p>
+                <a href="/personas/new" className="btn-primary text-xs px-3 py-1.5">Persona erstellen</a>
+              </div>
+            )}
           </div>
         )}
 

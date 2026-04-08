@@ -143,8 +143,16 @@ export default function NewSimulationPage() {
       inputData.ad_format = adFormat;
     }
     if (config.needs.includes("urls")) {
-      const filled = urls.filter(u => u.trim());
+      const filled = urls
+        .filter(u => u.trim())
+        .map(u => {
+          const trimmed = u.trim();
+          if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`;
+          return trimmed;
+        });
       if (filled.length === 0) { setError("Mindestens eine URL erforderlich."); return; }
+      const invalid = filled.find(u => { try { new URL(u); return false; } catch { return true; } });
+      if (invalid) { setError(`Ungültige URL: ${invalid}`); return; }
       inputData.urls = filled;
     }
     if (config.needs.includes("landing_goal")) {

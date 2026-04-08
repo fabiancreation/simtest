@@ -103,7 +103,7 @@ export default async function DashboardPage() {
 
       {/* CTA */}
       <div className="animate-slide-up" style={{ animationDelay: "320ms" }}>
-        <Link href="/run/new" className="btn-primary inline-flex items-center gap-2.5 text-sm">
+        <Link href="/simulation/new" className="btn-primary inline-flex items-center gap-2.5 text-sm">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
           </svg>

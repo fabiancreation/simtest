@@ -34,11 +34,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "simType und inputData sind Pflicht" }, { status: 400 });
   }
 
+  // Auto-Name generieren
+  const typeLabels: Record<string, string> = {
+    copy: "Copy Test", product: "Produkt-Check", pricing: "Pricing Test",
+    ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check", crisis: "Krisentest",
+  };
+  const typeLabel = typeLabels[simType] ?? simType;
+  let snippet = "";
+  if (simType === "copy") {
+    const variants = (inputData.variants as string[]) ?? [];
+    snippet = variants[0]?.slice(0, 50) ?? "";
+  } else if (simType === "product" || simType === "pricing") {
+    snippet = ((inputData.offer as string) ?? "").slice(0, 50);
+  } else if (simType === "ad") {
+    const ads = (inputData.ad_variants as Array<{ headline?: string }>) ?? [];
+    snippet = ads[0]?.headline?.slice(0, 50) ?? "";
+  } else if (simType === "landing") {
+    const urls = (inputData.urls as string[]) ?? [];
+    snippet = urls[0]?.replace(/^https?:\/\//, "").slice(0, 40) ?? "";
+  } else if (simType === "campaign") {
+    snippet = ((inputData.campaign_brief as string) ?? "").slice(0, 50);
+  } else if (simType === "crisis") {
+    snippet = ((inputData.crisis_message as string) ?? "").slice(0, 50);
+  }
+  const simName = snippet ? `${typeLabel}: ${snippet}${snippet.length >= 50 ? "..." : ""}` : typeLabel;
+
   // Simulation anlegen (status: queued)
   const { data: simulation, error: simError } = await supabase
     .from("simulations")
     .insert({
       user_id: user.id,
+      name: simName,
       sim_type: simType,
       persona_preset: personaPreset,
       persona_id: personaId,

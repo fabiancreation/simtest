@@ -1,6 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
+const TYPE_LABELS: Record<string, string> = {
+  copy: "Copy Test", product: "Produkt-Check", pricing: "Pricing Test",
+  ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check",
+  crisis: "Krisentest", strategy: "Strategie-Check",
+};
+
+const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  completed: { color: "text-accent", bg: "rgba(110,231,183,0.1)", label: "Fertig" },
+  done: { color: "text-accent", bg: "rgba(110,231,183,0.1)", label: "Fertig" },
+  running: { color: "text-blue", bg: "rgba(96,165,250,0.1)", label: "Läuft" },
+  failed: { color: "text-red", bg: "rgba(248,113,113,0.1)", label: "Fehler" },
+  queued: { color: "text-warning", bg: "rgba(245,158,11,0.1)", label: "Wartend" },
+  draft: { color: "text-text-dim", bg: "rgba(90,90,114,0.1)", label: "Entwurf" },
+};
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -11,12 +26,35 @@ export default async function DashboardPage() {
     .eq("id", user!.id)
     .single();
 
-  const { data: recentRuns } = await supabase
+  // Neue Simulationen laden
+  const { data: simulations } = await supabase
+    .from("simulations")
+    .select("id, sim_type, status, agent_count, created_at, completed_at")
+    .eq("user_id", user!.id)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  // Alte Runs auch laden (falls vorhanden)
+  const { data: legacyRuns } = await supabase
     .from("runs")
-    .select("*")
+    .select("id, stimulus_type, status, agent_count, created_at, completed_at")
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false })
     .limit(5);
+
+  // Zusammenführen und nach Datum sortieren
+  const allItems = [
+    ...(simulations ?? []).map(s => ({
+      id: s.id, type: s.sim_type, status: s.status,
+      agentCount: s.agent_count, createdAt: s.created_at,
+      isNew: true,
+    })),
+    ...(legacyRuns ?? []).map(r => ({
+      id: r.id, type: r.stimulus_type, status: r.status,
+      agentCount: r.agent_count, createdAt: r.created_at,
+      isNew: false,
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
 
   const runsUsed = profile?.runs_used ?? 0;
   const runsLimit = profile?.runs_limit ?? 3;
@@ -26,22 +64,15 @@ export default async function DashboardPage() {
 
   const stats = [
     {
-      label: "Plan",
-      value: plan,
-      capitalize: true,
-      color: "#a78bfa",
+      label: "Plan", value: plan, capitalize: true, color: "#a78bfa",
       icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z",
     },
     {
-      label: "Runs diesen Monat",
-      value: `${runsUsed} / ${runsLimit}`,
-      color: "#60a5fa",
+      label: "Simulationen", value: `${runsUsed} / ${runsLimit}`, color: "#60a5fa",
       icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z",
     },
     {
-      label: "Verbleibend",
-      value: remaining.toString(),
-      color: "#6ee7b7",
+      label: "Verbleibend", value: remaining.toString(), color: "#6ee7b7",
       icon: "M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z",
     },
   ];
@@ -95,7 +126,7 @@ export default async function DashboardPage() {
               background: usagePercent > 80
                 ? "linear-gradient(90deg, #f59e0b, #f87171)"
                 : "linear-gradient(90deg, var(--color-accent-dim), var(--color-accent))",
-              boxShadow: usagePercent > 0 ? "0 0 12px rgba(110,231,183,0.3)" : "none",
+              boxShadow: usagePercent > 0 ? "0 0 12px var(--color-accent-glow)" : "none",
             }}
           />
         </div>
@@ -111,12 +142,12 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Recent Runs */}
+      {/* Simulationen */}
       <div className="animate-slide-up" style={{ animationDelay: "400ms" }}>
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 16 }}>
           Letzte Simulationen
         </h2>
-        {!recentRuns?.length ? (
+        {allItems.length === 0 ? (
           <div className="card p-10 text-center">
             <div className="icon-glow mx-auto mb-4" style={{ "--glow-color": "rgba(110,231,183,0.1)" } as React.CSSProperties}>
               <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -128,20 +159,16 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-2 stagger">
-            {recentRuns.map((run) => {
-              const statusConfig: Record<string, { color: string; bg: string; label: string }> = {
-                done: { color: "text-accent", bg: "rgba(110,231,183,0.1)", label: "Fertig" },
-                running: { color: "text-blue", bg: "rgba(96,165,250,0.1)", label: "Läuft" },
-                failed: { color: "text-red", bg: "rgba(248,113,113,0.1)", label: "Fehler" },
-                queued: { color: "text-warning", bg: "rgba(245,158,11,0.1)", label: "Wartend" },
-              };
-              const status = statusConfig[run.status] ?? statusConfig.queued;
-              const typeLabels: Record<string, string> = { copy: "Copy Test", product: "Produkt-Check", strategy: "Strategie-Check" };
+            {allItems.map((item) => {
+              const status = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.queued;
+              const href = item.isNew
+                ? `/simulation/${item.id}`
+                : (item.status === "done" ? `/run/${item.id}/report` : `/run/${item.id}`);
 
               return (
                 <Link
-                  key={run.id}
-                  href={run.status === "done" ? `/run/${run.id}/report` : `/run/${run.id}`}
+                  key={item.id}
+                  href={href}
                   className="card-interactive card flex items-center justify-between p-4 cursor-pointer animate-slide-up"
                 >
                   <div className="flex items-center gap-3">
@@ -151,13 +178,18 @@ export default async function DashboardPage() {
                       </svg>
                     </div>
                     <div>
-                      <span className="text-sm font-medium">{typeLabels[run.stimulus_type] ?? run.stimulus_type}</span>
+                      <span className="text-sm font-medium" style={{ fontFamily: "var(--font-display)" }}>
+                        {TYPE_LABELS[item.type] ?? item.type}
+                      </span>
                       <span className="ml-3 text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
-                        {new Date(run.created_at).toLocaleDateString("de-DE")}
+                        {new Date(item.createdAt).toLocaleDateString("de-DE")}
+                      </span>
+                      <span className="ml-2 text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
+                        {item.agentCount} Agenten
                       </span>
                     </div>
                   </div>
-                  <span className="badge" style={{ color: `var(--color-${run.status === "done" ? "accent" : run.status === "running" ? "blue" : run.status === "failed" ? "red" : "warning"})`, background: status.bg }}>
+                  <span className="badge" style={{ background: status.bg, color: status.color.startsWith("text-") ? `var(--color-${status.color.replace("text-", "")})` : status.color }}>
                     {status.label}
                   </span>
                 </Link>

@@ -484,17 +484,20 @@ async function generateSynthesis(
   const variantSummaries = variants.map(v => {
     const vReactions = allReactions.filter(r => r.variantId === v.id);
     const vBuy = vReactions.filter(r => r.wouldBuy).length;
+    // Reaktionen kürzen — max 10, Reasoning max 150 Zeichen
     const reasonings = vReactions
-      .map(r => `- ${agents.find(a => a.index === r.agentIndex)?.persona.name ?? "Agent"} (${r.action}, ${r.interestLevel}/10): ${r.internalReasoning}`)
-      .slice(0, 15);
-    const vObjections = vReactions.map(r => r.biggestObjection).filter(Boolean).slice(0, 10);
+      .map(r => {
+        const name = agents.find(a => a.index === r.agentIndex)?.persona.name ?? "Agent";
+        const reasoning = r.internalReasoning.slice(0, 150);
+        return `- ${name} (${r.action}, ${r.interestLevel}/10): ${reasoning}`;
+      })
+      .slice(0, 10);
+    const vObjections = vReactions.map(r => r.biggestObjection).filter(Boolean).slice(0, 5);
 
-    return `VARIANTE ${v.id} "${v.label}":
-Content: "${v.content.slice(0, 200)}${v.content.length > 200 ? "..." : ""}"
+    return `VARIANTE ${v.id}:
 Kaufbereitschaft: ${vBuy}/${vReactions.length} (${Math.round(vBuy / Math.max(1, vReactions.length) * 100)}%)
-Reaktionen:
-${reasonings.join("\n")}
-Häufigste Einwände: ${vObjections.join(" | ")}`;
+Reaktionen:\n${reasonings.join("\n")}
+Einwände: ${vObjections.join(" | ") || "keine"}`;
   });
 
   const typeContext = simType === "product" ? "ein Produktangebot"
@@ -506,8 +509,8 @@ Häufigste Einwände: ${vObjections.join(" | ")}`;
 
   const response = await withRetry(() => anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 1500,
-    system: `Du bist ein erfahrener Marktforschungs-Analyst. Analysiere die Reaktionen von KI-Personas auf ${typeContext} und gib konkrete, umsetzbare Empfehlungen. Schreibe auf Deutsch. Antworte NUR als JSON.`,
+    max_tokens: 1000,
+    system: `Du bist ein Marktforschungs-Analyst. Analysiere Persona-Reaktionen und gib konkrete Empfehlungen. Deutsch. NUR JSON, kein Markdown, keine Codeblocks.`,
     messages: [{
       role: "user",
       content: `${totalCount} Personas aus der Zielgruppe haben auf ${typeContext} reagiert.
@@ -525,18 +528,20 @@ Nur JSON, keine Erklärungen.`,
     }],
   })) as { content: Array<{ type: string; text?: string }> };
 
-  const text = response.content[0].type === "text" ? (response.content[0].text ?? "") : "";
+  const rawText = response.content[0].type === "text" ? (response.content[0].text ?? "") : "";
+  const cleanedText = rawText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("Kein JSON");
     const parsed = JSON.parse(jsonMatch[0]);
     return {
       summary: parsed.summary ?? "",
-      recommendations: parsed.recommendations ?? [],
-      objection_clusters: parsed.objection_clusters ?? [],
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+      objection_clusters: Array.isArray(parsed.objection_clusters) ? parsed.objection_clusters : [],
       buy_rate: buyRate,
     };
-  } catch {
+  } catch (e) {
+    console.error("Synthese-Parse-Fehler:", e, "Raw:", rawText.slice(0, 200));
     return { summary: "", recommendations: [], objection_clusters: [], buy_rate: buyRate };
   }
 }

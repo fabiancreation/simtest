@@ -19,6 +19,7 @@ interface VariantReportData {
   avg_interest: number;
   avg_credibility: number;
   top_comments: Array<{ agent_name: string; text: string; sentiment: string }>;
+  agent_feedback: Array<{ agent_name: string; reasoning: string; action: string; interest_level: number }>;
   sentiment_distribution: { positive: number; neutral: number; negative: number };
 }
 
@@ -459,6 +460,66 @@ export default function SimulationResultPage() {
                 </div>
               )
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* === Agent-Feedback (besonders wertvoll bei niedrigem Engagement) === */}
+      {report.variants?.some(v => (v.agent_feedback?.length ?? 0) > 0) && (
+        <div className="card p-6 animate-slide-up">
+          <h3 className="mb-2" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>
+            Was die Zielgruppe denkt
+          </h3>
+          <p className="text-xs text-text-dim mb-4">Interne Gedanken der Agenten - so würden sie nicht öffentlich kommentieren, aber so denken sie wirklich.</p>
+          <div className="space-y-6">
+            {report.variants.map(v => {
+              const feedback = v.agent_feedback ?? [];
+              if (feedback.length === 0) return null;
+              return (
+                <div key={v.variant_id}>
+                  {hasMultipleVariants && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{
+                        fontFamily: "var(--font-mono)",
+                        background: v.variant_id === report.winner ? "var(--color-accent)" : "var(--color-border)",
+                        color: v.variant_id === report.winner ? "white" : "var(--color-text-dim)",
+                      }}>{v.variant_id}</span>
+                      <span className="text-xs text-text-dim">{v.label}</span>
+                    </div>
+                  )}
+                  <div className="space-y-2.5">
+                    {feedback.map((fb, i) => {
+                      const actionColors: Record<string, string> = {
+                        like: "var(--color-accent)", comment: "#6366F1", share: "#8B5CF6", ignore: "var(--color-text-dim)",
+                      };
+                      const actionLabels: Record<string, string> = {
+                        like: "liked", comment: "kommentiert", share: "geteilt", ignore: "ignoriert",
+                      };
+                      return (
+                        <div key={i} className="rounded-lg p-3" style={{ background: "var(--color-border)" }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium">{fb.agent_name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                                fontFamily: "var(--font-mono)",
+                                color: actionColors[fb.action] ?? "var(--color-text-dim)",
+                                background: fb.action === "ignore" ? "transparent" : `${actionColors[fb.action]}15`,
+                              }}>
+                                {actionLabels[fb.action] ?? fb.action}
+                              </span>
+                              <span className="text-[10px] text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
+                                {fb.interest_level}/10
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-text-muted leading-relaxed">{fb.reasoning}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -58,6 +58,12 @@ export interface VariantReport {
     text: string;
     sentiment: "positive" | "neutral" | "negative";
   }>;
+  agent_feedback: Array<{
+    agent_name: string;
+    reasoning: string;
+    action: SimAction;
+    interest_level: number;
+  }>;
   sentiment_distribution: {
     positive: number;
     neutral: number;

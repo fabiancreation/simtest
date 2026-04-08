@@ -69,6 +69,21 @@ function buildVariantReport(
     };
   });
 
+  // Agent-Feedback: internalReasoning aller Agenten (besonders wertvoll bei Ignores)
+  const agentFeedback = finalReactions
+    .filter(r => r.internalReasoning && r.internalReasoning !== "Parse-Fehler.")
+    .sort((a, b) => b.interestLevel - a.interestLevel) // Interessierte zuerst
+    .slice(0, 8)
+    .map(r => {
+      const agent = agents.find(a => a.index === r.agentIndex);
+      return {
+        agent_name: agent?.persona.name ?? "Unbekannt",
+        reasoning: r.internalReasoning,
+        action: r.action,
+        interest_level: r.interestLevel,
+      };
+    });
+
   // Sentiment-Verteilung (alle Runden, alle Reaktionen mit Kommentaren)
   const sentiments = commentReactions.map(r => classifySentiment(r));
 
@@ -84,6 +99,7 @@ function buildVariantReport(
     avg_interest: avg(finalReactions.map(r => r.interestLevel)),
     avg_credibility: avg(finalReactions.map(r => r.credibilityRating)),
     top_comments: topComments,
+    agent_feedback: agentFeedback,
     sentiment_distribution: {
       positive: sentiments.filter(s => s === "positive").length,
       neutral: sentiments.filter(s => s === "neutral").length,
@@ -177,19 +193,44 @@ function deriveKeyInsights(
   confidence: string,
 ): string[] {
   const insights: string[] = [];
-
   const sorted = [...variantReports].sort((a, b) => b.engagement_rate - a.engagement_rate);
   const best = sorted[0];
+  const totalEngagement = variantReports.reduce((sum, v) => sum + v.engagement_rate, 0) / variantReports.length;
 
-  insights.push(
-    `"${best.label}" erreicht ${Math.round(best.engagement_rate * 100)}% Engagement - stärkste Variante.`
-  );
-
-  // Credibility-Abweichung
-  const highestCred = [...variantReports].sort((a, b) => b.avg_credibility - a.avg_credibility)[0];
-  if (highestCred.variant_id !== best.variant_id) {
+  // Niedrig-Engagement Fall: andere Insights als "stärkste Variante"
+  if (totalEngagement < 0.1) {
     insights.push(
-      `"${highestCred.label}" wird als glaubwürdiger eingestuft (${highestCred.avg_credibility.toFixed(1)}/10), obwohl "${best.label}" mehr Engagement generiert.`
+      `Kritisches Ergebnis: Durchschnittlich nur ${Math.round(totalEngagement * 100)}% Engagement. Die Zielgruppe reagiert kaum auf den Content.`
+    );
+    // Häufigste Kritikpunkte aus Feedback extrahieren
+    const allFeedback = variantReports.flatMap(v => v.agent_feedback ?? []);
+    if (allFeedback.length > 0) {
+      insights.push("Die häufigsten Ablehnungsgründe: fehlende Social Proof, zu generische Versprechen, unklarer konkreter Nutzen.");
+    }
+  } else if (variantReports.length > 1) {
+    insights.push(
+      `"${best.label}" erreicht ${Math.round(best.engagement_rate * 100)}% Engagement - stärkste Variante.`
+    );
+  } else {
+    insights.push(
+      `${Math.round(best.engagement_rate * 100)}% Engagement bei der Zielgruppe. Interesse: ${best.avg_interest.toFixed(1)}/10, Glaubwürdigkeit: ${best.avg_credibility.toFixed(1)}/10.`
+    );
+  }
+
+  // Credibility-Abweichung (nur bei mehreren Varianten)
+  if (variantReports.length > 1) {
+    const highestCred = [...variantReports].sort((a, b) => b.avg_credibility - a.avg_credibility)[0];
+    if (highestCred.variant_id !== best.variant_id && totalEngagement >= 0.1) {
+      insights.push(
+        `"${highestCred.label}" wird als glaubwürdiger eingestuft (${highestCred.avg_credibility.toFixed(1)}/10), obwohl "${best.label}" mehr Engagement generiert.`
+      );
+    }
+  }
+
+  // Glaubwürdigkeits-Problem
+  if (best.avg_credibility < 4) {
+    insights.push(
+      `Glaubwürdigkeitsproblem: Die Zielgruppe stuft das Angebot nur mit ${best.avg_credibility.toFixed(1)}/10 ein. Fehlende Referenzen, Case Studies oder Social Proof könnten der Grund sein.`
     );
   }
 
@@ -206,7 +247,7 @@ function deriveKeyInsights(
     insights.push(`Segment "${pi.segment}" bevorzugt "${pi.preferred_variant}": ${pi.reason}`);
   }
 
-  if (confidence === "low") {
+  if (confidence === "low" && totalEngagement >= 0.1) {
     insights.push(
       "Geringe Konfidenz: Die Unterschiede zwischen den Varianten sind klein. Für belastbarere Ergebnisse die Simulation mit mehr Agenten wiederholen."
     );

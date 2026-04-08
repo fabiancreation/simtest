@@ -20,7 +20,7 @@ export default async function DashboardPage() {
 
   const runsUsed = profile?.runs_used ?? 0;
   const runsLimit = profile?.runs_limit ?? 3;
-  const plan = profile?.plan ?? "free";
+  const plan = profile?.simtest_plan ?? "free";
   const remaining = Math.max(0, runsLimit - runsUsed);
   const usagePercent = runsLimit > 0 ? (runsUsed / runsLimit) * 100 : 0;
 

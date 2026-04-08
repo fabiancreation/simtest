@@ -14,7 +14,7 @@ export default async function SettingsPage() {
     .eq("id", user.id)
     .single();
 
-  const plan = profile?.plan ?? "free";
+  const plan = profile?.simtest_plan ?? "free";
   const runsUsed = profile?.runs_used ?? 0;
   const runsLimit = profile?.runs_limit ?? 3;
 

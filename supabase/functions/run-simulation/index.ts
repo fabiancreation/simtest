@@ -461,6 +461,77 @@ function extractRawVariants(simType: string, inputData: Record<string, unknown>)
 }
 
 // ============================================
+// LANDING PAGE CRAWLER
+// ============================================
+
+async function crawlLandingPage(url: string): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; SimTestBot/1.0)",
+        "Accept": "text/html",
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) return `[Seite nicht erreichbar: HTTP ${response.status}]`;
+
+    const html = await response.text();
+
+    // HTML zu Text: Tags entfernen, relevante Inhalte extrahieren
+    let text = html
+      // Script, Style, Head entfernen
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<head[\s\S]*?<\/head>/gi, "")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+      // Meta-Beschreibung extrahieren
+      .replace(/.*/, (m) => {
+        const metaMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
+        return metaMatch ? `META: ${metaMatch[1]}\n\n${m}` : m;
+      });
+
+    // Title extrahieren
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : "";
+
+    // OG-Tags
+    const ogTitle = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i)?.[1] ?? "";
+    const ogDesc = html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i)?.[1] ?? "";
+
+    // HTML-Tags entfernen
+    text = text
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Zusammenbauen
+    const parts: string[] = [];
+    if (title) parts.push(`TITEL: ${title}`);
+    if (ogTitle && ogTitle !== title) parts.push(`HEADLINE: ${ogTitle}`);
+    if (ogDesc) parts.push(`BESCHREIBUNG: ${ogDesc}`);
+    parts.push("");
+    parts.push(`SEITENINHALT:\n${text.slice(0, 3000)}`);
+
+    return parts.join("\n");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
+    return `[Seite konnte nicht geladen werden: ${msg}]`;
+  }
+}
+
+// ============================================
 // AI-SYNTHESE
 // ============================================
 
@@ -615,9 +686,20 @@ Deno.serve(async (req) => {
     if (personas.length === 0) throw new Error("Keine Personas verfügbar");
     if (personas.length > sim.agent_count) personas = personas.slice(0, sim.agent_count);
 
-    // 3. Varianten extrahieren
-    const variants = extractVariants(sim.sim_type, sim.input_data);
+    // 3. Varianten extrahieren (bei Landing Pages: URLs crawlen)
+    let variants = extractVariants(sim.sim_type, sim.input_data);
     if (variants.length === 0) throw new Error("Keine Varianten");
+
+    if (sim.sim_type === "landing") {
+      const urls = (sim.input_data.urls as string[]) ?? [];
+      const goal = sim.input_data.landing_goal as string ?? "";
+      const crawledPages = await Promise.all(urls.map(url => crawlLandingPage(url)));
+      variants = crawledPages.map((content, i) => ({
+        id: String.fromCharCode(65 + i),
+        label: `Landing Page ${String.fromCharCode(65 + i)}`,
+        content: `URL: ${urls[i]}\nZiel: ${goal}\n\n${content}`,
+      }));
+    }
 
     // 4. Agenten bauen + Netzwerk
     const agents = buildAgents(personas, variants);

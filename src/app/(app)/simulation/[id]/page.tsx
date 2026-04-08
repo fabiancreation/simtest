@@ -78,6 +78,8 @@ const CONFIDENCE_LABELS: Record<string, { label: string; color: string; bg: stri
   low: { label: "Geringe Konfidenz", color: "var(--color-red)", bg: "rgba(248,113,113,0.1)" },
 };
 
+function fmt(n: number): string { return Number.isFinite(n) ? n.toFixed(1) : "0.0"; }
+
 export default function SimulationResultPage() {
   const params = useParams();
   const [sim, setSim] = useState<SimData | null>(null);
@@ -86,7 +88,6 @@ export default function SimulationResultPage() {
 
   useEffect(() => {
     const supabase = createClient();
-
     async function fetchInitial() {
       const res = await fetch(`/api/simulations/${params.id}/status`);
       if (!res.ok) return;
@@ -94,9 +95,7 @@ export default function SimulationResultPage() {
       setSim(data);
       setLoading(false);
     }
-
     fetchInitial();
-
     const channel = supabase
       .channel(`simulation-${params.id}`)
       .on("postgres_changes", {
@@ -104,7 +103,6 @@ export default function SimulationResultPage() {
         filter: `id=eq.${params.id}`,
       }, () => { fetchInitial(); })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [params.id]);
 
@@ -125,8 +123,7 @@ export default function SimulationResultPage() {
   // --- RUNNING / QUEUED ---
   if (sim.status === "running" || sim.status === "queued") {
     const roundInfo = sim.total_rounds && sim.total_rounds > 1 && sim.current_round
-      ? ` (Runde ${sim.current_round}/${sim.total_rounds})`
-      : "";
+      ? ` (Runde ${sim.current_round}/${sim.total_rounds})` : "";
     return (
       <div className="max-w-lg mx-auto mt-16 text-center space-y-8 animate-slide-up">
         <div className="relative w-24 h-24 mx-auto">
@@ -155,11 +152,8 @@ export default function SimulationResultPage() {
         <div className="max-w-xs mx-auto">
           <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--color-border)" }}>
             <div className="h-full rounded-full transition-all" style={{
-              width: sim.total_rounds && sim.current_round
-                ? `${Math.max(10, (sim.current_round / sim.total_rounds) * 100)}%`
-                : "65%",
-              background: "linear-gradient(90deg, var(--color-accent-dim), var(--color-accent))",
-              animation: "progressPulse 2s ease-in-out infinite",
+              width: sim.total_rounds && sim.current_round ? `${Math.max(10, (sim.current_round / sim.total_rounds) * 100)}%` : "65%",
+              background: "linear-gradient(90deg, var(--color-accent-dim), var(--color-accent))", animation: "progressPulse 2s ease-in-out infinite",
             }} />
           </div>
           <p className="text-xs text-text-dim mt-3">Seite aktualisiert sich automatisch.</p>
@@ -200,10 +194,11 @@ export default function SimulationResultPage() {
     );
   }
 
-  // Gewinner-Variante finden
   const winnerVariant = report.variants?.find(v => v.variant_id === report.winner);
   const winnerIndex = winnerVariant ? report.variants.indexOf(winnerVariant) : 0;
+  const loserVariant = report.variants?.find(v => v.variant_id !== report.winner);
   const conf = CONFIDENCE_LABELS[report.confidence] ?? CONFIDENCE_LABELS.medium;
+  const hasMultipleVariants = (report.variants?.length ?? 0) > 1;
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -218,20 +213,50 @@ export default function SimulationResultPage() {
         <h1 className="mt-3" style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, letterSpacing: "-0.03em" }}>
           Simulations-Report
         </h1>
-        <div className="flex items-center gap-3 mt-2">
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
           <span className="badge" style={{ background: "var(--color-accent-glow)", color: "var(--color-accent)" }}>
             {TYPE_LABELS[sim.sim_type] ?? sim.sim_type}
           </span>
           <span className="badge" style={{ background: conf.bg, color: conf.color }}>{conf.label}</span>
           <span className="text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
             {new Date(sim.created_at).toLocaleDateString("de-DE")} / {sim.agent_count} Agenten
+            {sim.total_rounds && sim.total_rounds > 1 ? ` / ${sim.total_rounds} Runden` : ""}
           </span>
         </div>
       </div>
 
-      {/* Winner */}
+      {/* === Getesteter Content === */}
+      <div className="card p-6 animate-slide-up" style={{ animationDelay: "60ms" }}>
+        <h3 className="mb-4" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Getesteter Content</h3>
+        <div className="space-y-3">
+          {variantTexts.map((text, i) => {
+            const varId = String.fromCharCode(65 + i);
+            const isWinner = varId === report.winner;
+            return (
+              <div key={i} className="rounded-xl p-4" style={{
+                border: `1.5px solid ${isWinner ? "var(--color-accent)" : "var(--color-border)"}`,
+                background: isWinner ? "var(--color-accent-glow)" : "transparent",
+              }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded" style={{
+                    fontFamily: "var(--font-mono)",
+                    background: isWinner ? "var(--color-accent)" : "var(--color-border)",
+                    color: isWinner ? "white" : "var(--color-text-dim)",
+                  }}>
+                    {varId}
+                  </span>
+                  {isWinner && <span className="text-xs text-accent font-semibold">Gewinner</span>}
+                </div>
+                <p className="text-sm text-text-muted leading-relaxed whitespace-pre-line">{text}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* === Gewinner-Zusammenfassung === */}
       <div className="animate-slide-up rounded-2xl p-6 relative overflow-hidden" style={{
-        animationDelay: "80ms",
+        animationDelay: "120ms",
         background: "linear-gradient(135deg, var(--color-accent-glow), transparent)",
         border: "1px solid var(--color-accent)",
       }}>
@@ -239,30 +264,54 @@ export default function SimulationResultPage() {
           <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172" />
           </svg>
-          <span className="text-xs uppercase tracking-wider text-accent" style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>GEWINNER</span>
+          <span className="text-xs uppercase tracking-wider text-accent" style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>ERGEBNIS</span>
         </div>
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800 }}>
-          {winnerVariant?.label ?? `Variante ${winnerIndex + 1}`}
+          {hasMultipleVariants
+            ? `${winnerVariant?.label ?? "Variante A"} gewinnt`
+            : "Simulations-Ergebnis"
+          }
         </h2>
+        {/* Engagement-Vergleich prominent */}
         {winnerVariant && (
-          <p className="text-xs text-text-dim mt-1" style={{ fontFamily: "var(--font-mono)" }}>
-            {Math.round(winnerVariant.engagement_rate * 100)}% Engagement / {winnerVariant.avg_credibility.toFixed(1)}/10 Glaubwürdigkeit
-          </p>
+          <div className="flex items-center gap-6 mt-3">
+            <div>
+              <span className="text-3xl font-bold text-accent" style={{ fontFamily: "var(--font-mono)" }}>
+                {Math.round(winnerVariant.engagement_rate * 100)}%
+              </span>
+              <span className="text-xs text-text-dim block" style={{ fontFamily: "var(--font-mono)" }}>Engagement</span>
+            </div>
+            {loserVariant && (
+              <>
+                <span className="text-text-dim text-lg">vs.</span>
+                <div>
+                  <span className="text-3xl font-bold text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
+                    {Math.round(loserVariant.engagement_rate * 100)}%
+                  </span>
+                  <span className="text-xs text-text-dim block" style={{ fontFamily: "var(--font-mono)" }}>Engagement</span>
+                </div>
+              </>
+            )}
+            <div className="ml-auto text-right">
+              <span className="text-sm text-text-muted">{fmt(winnerVariant.avg_interest)}/10 Interesse</span>
+              <span className="text-xs text-text-dim block">{fmt(winnerVariant.avg_credibility)}/10 Glaubwürdigkeit</span>
+            </div>
+          </div>
         )}
-        <p className="text-text-muted mt-3 text-sm leading-relaxed whitespace-pre-line">
-          {variantTexts[winnerIndex]?.slice(0, 300)}
-          {(variantTexts[winnerIndex]?.length ?? 0) > 300 && "..."}
-        </p>
       </div>
 
-      {/* Key Insights */}
+      {/* === Key Insights === */}
       {report.key_insights?.length > 0 && (
-        <div className="card p-6 animate-slide-up" style={{ animationDelay: "160ms" }}>
+        <div className="card p-6 animate-slide-up" style={{ animationDelay: "200ms" }}>
           <h3 className="mb-4" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Key Insights</h3>
           <ul className="space-y-3">
             {report.key_insights.map((insight, i) => (
               <li key={i} className="text-sm text-text-muted flex gap-2.5 items-start">
-                <span className="text-accent mt-0.5 shrink-0">*</span>
+                <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5" style={{ background: "var(--color-accent-glow)" }}>
+                  <svg className="w-3 h-3 text-accent" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                  </svg>
+                </span>
                 <span>{insight}</span>
               </li>
             ))}
@@ -270,39 +319,55 @@ export default function SimulationResultPage() {
         </div>
       )}
 
-      {/* Variant Comparison */}
+      {/* === Varianten-Vergleich (neues Format) === */}
       {report.variants?.length > 1 && (
-        <div className="card p-6 animate-slide-up" style={{ animationDelay: "240ms" }}>
+        <div className="card p-6 animate-slide-up" style={{ animationDelay: "280ms" }}>
           <h3 className="mb-5" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Varianten-Vergleich</h3>
-          <div className="space-y-5">
+          <div className="space-y-6">
             {report.variants.map((v) => {
               const total = v.total_agents || 1;
+              const isWinner = v.variant_id === report.winner;
               const engaged = v.like_count + v.comment_count + v.share_count;
               return (
                 <div key={v.variant_id} className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium" style={{ fontFamily: "var(--font-display)" }}>{v.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{
+                        fontFamily: "var(--font-mono)",
+                        background: isWinner ? "var(--color-accent)" : "var(--color-border)",
+                        color: isWinner ? "white" : "var(--color-text-dim)",
+                      }}>
+                        {v.variant_id}
+                      </span>
+                      <span className="text-sm font-medium" style={{ fontFamily: "var(--font-display)" }}>{v.label}</span>
+                    </div>
                     <span className="badge" style={{
-                      background: v.engagement_rate > 0.6 ? "var(--color-accent-glow)" : "rgba(245,158,11,0.1)",
-                      color: v.engagement_rate > 0.6 ? "var(--color-accent)" : "var(--color-warning)",
+                      background: v.engagement_rate > 0.6 ? "var(--color-accent-glow)" : v.engagement_rate > 0.3 ? "rgba(245,158,11,0.1)" : "rgba(248,113,113,0.1)",
+                      color: v.engagement_rate > 0.6 ? "var(--color-accent)" : v.engagement_rate > 0.3 ? "var(--color-warning)" : "var(--color-red)",
                     }}>{Math.round(v.engagement_rate * 100)}% Engagement</span>
                   </div>
-                  {/* Action-Bar */}
-                  <div className="flex h-7 rounded-lg overflow-hidden" style={{ background: "var(--color-border)" }}>
-                    <div className="transition-all" style={{ width: `${(v.like_count / total) * 100}%`, background: "var(--color-accent)" }} title={`${v.like_count} Likes`} />
-                    <div className="transition-all" style={{ width: `${(v.comment_count / total) * 100}%`, background: "#6366F1" }} title={`${v.comment_count} Kommentare`} />
-                    <div className="transition-all" style={{ width: `${(v.share_count / total) * 100}%`, background: "#8B5CF6" }} title={`${v.share_count} Shares`} />
-                    <div className="transition-all" style={{ width: `${(v.ignore_count / total) * 100}%`, background: "var(--color-border)" }} title={`${v.ignore_count} Ignoriert`} />
-                  </div>
+                  {/* Action-Bar: nur anzeigen wenn es Aktionen gibt */}
+                  {engaged > 0 ? (
+                    <div className="flex h-7 rounded-lg overflow-hidden" style={{ background: "var(--color-border)" }}>
+                      {v.like_count > 0 && <div className="transition-all flex items-center justify-center text-[10px] text-white font-bold" style={{ width: `${(v.like_count / total) * 100}%`, minWidth: v.like_count > 0 ? 24 : 0, background: "var(--color-accent)" }}>{v.like_count}</div>}
+                      {v.comment_count > 0 && <div className="transition-all flex items-center justify-center text-[10px] text-white font-bold" style={{ width: `${(v.comment_count / total) * 100}%`, minWidth: v.comment_count > 0 ? 24 : 0, background: "#6366F1" }}>{v.comment_count}</div>}
+                      {v.share_count > 0 && <div className="transition-all flex items-center justify-center text-[10px] text-white font-bold" style={{ width: `${(v.share_count / total) * 100}%`, minWidth: v.share_count > 0 ? 24 : 0, background: "#8B5CF6" }}>{v.share_count}</div>}
+                      {v.ignore_count > 0 && <div className="transition-all" style={{ width: `${(v.ignore_count / total) * 100}%` }} />}
+                    </div>
+                  ) : (
+                    <div className="flex h-7 rounded-lg overflow-hidden items-center justify-center text-xs text-text-dim" style={{ background: "var(--color-border)" }}>
+                      Alle Agenten haben ignoriert
+                    </div>
+                  )}
                   <div className="flex gap-4 text-xs text-text-dim flex-wrap">
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "var(--color-accent)" }} /> Like: {v.like_count}</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#6366F1" }} /> Kommentar: {v.comment_count}</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#8B5CF6" }} /> Share: {v.share_count}</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "var(--color-border)" }} /> Ignoriert: {v.ignore_count}</span>
+                    {v.like_count > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "var(--color-accent)" }} /> {v.like_count} Like{v.like_count !== 1 ? "s" : ""}</span>}
+                    {v.comment_count > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#6366F1" }} /> {v.comment_count} Kommentar{v.comment_count !== 1 ? "e" : ""}</span>}
+                    {v.share_count > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#8B5CF6" }} /> {v.share_count} Share{v.share_count !== 1 ? "s" : ""}</span>}
+                    {v.ignore_count > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "var(--color-border)" }} /> {v.ignore_count} ignoriert</span>}
                   </div>
                   <div className="flex gap-4 text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
-                    <span>Interesse: {v.avg_interest.toFixed(1)}/10</span>
-                    <span>Glaubwürdigkeit: {v.avg_credibility.toFixed(1)}/10</span>
+                    <span>Interesse: {fmt(v.avg_interest)}/10</span>
+                    <span>Glaubwürdigkeit: {fmt(v.avg_credibility)}/10</span>
                   </div>
                 </div>
               );
@@ -311,9 +376,9 @@ export default function SimulationResultPage() {
         </div>
       )}
 
-      {/* Legacy Variant Stats (fallback für alte Simulationen) */}
+      {/* === Legacy Variant Stats (alte Simulationen) === */}
       {!report.variants?.length && stats.length > 1 && (
-        <div className="card p-6 animate-slide-up" style={{ animationDelay: "240ms" }}>
+        <div className="card p-6 animate-slide-up" style={{ animationDelay: "280ms" }}>
           <h3 className="mb-5" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Varianten-Vergleich</h3>
           <div className="space-y-5">
             {stats.map((v) => {
@@ -344,28 +409,35 @@ export default function SimulationResultPage() {
         </div>
       )}
 
-      {/* Top Comments */}
+      {/* === Agenten-Kommentare (nach Variante getrennt) === */}
       {report.variants?.some(v => v.top_comments?.length > 0) && (
         <div className="card p-6 animate-slide-up">
-          <h3 className="mb-4" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Agenten-Kommentare</h3>
-          <div className="space-y-4">
+          <h3 className="mb-5" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Was die Agenten sagen</h3>
+          <div className="space-y-6">
             {report.variants.map(v => (
               v.top_comments?.length > 0 && (
                 <div key={v.variant_id}>
-                  <p className="text-xs text-text-dim mb-2" style={{ fontFamily: "var(--font-mono)" }}>{v.label}</p>
-                  <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{
+                      fontFamily: "var(--font-mono)",
+                      background: v.variant_id === report.winner ? "var(--color-accent)" : "var(--color-border)",
+                      color: v.variant_id === report.winner ? "white" : "var(--color-text-dim)",
+                    }}>{v.variant_id}</span>
+                    <span className="text-xs text-text-dim">{v.label}</span>
+                  </div>
+                  <div className="space-y-3 ml-1">
                     {v.top_comments.map((c, i) => (
-                      <div key={i} className="flex gap-3 items-start text-sm">
-                        <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px]" style={{
+                      <div key={i} className="flex gap-3 items-start">
+                        <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{
                           background: c.sentiment === "positive" ? "var(--color-accent-glow)" : c.sentiment === "negative" ? "rgba(248,113,113,0.1)" : "var(--color-border)",
                           color: c.sentiment === "positive" ? "var(--color-accent)" : c.sentiment === "negative" ? "var(--color-red)" : "var(--color-text-dim)",
                           fontFamily: "var(--font-mono)",
                         }}>
-                          {c.agent_name.charAt(0)}
-                        </span>
-                        <div>
-                          <span className="text-text-dim text-xs">{c.agent_name}</span>
-                          <p className="text-text-muted">{c.text}</p>
+                          {c.agent_name.split(" ").map(n => n[0]).join("")}
+                        </div>
+                        <div className="flex-1 rounded-xl p-3" style={{ background: "var(--color-border)", borderTopLeftRadius: 4 }}>
+                          <span className="text-text-dim text-xs font-medium">{c.agent_name}</span>
+                          <p className="text-sm text-text-muted mt-0.5 leading-relaxed">{c.text}</p>
                         </div>
                       </div>
                     ))}
@@ -377,7 +449,7 @@ export default function SimulationResultPage() {
         </div>
       )}
 
-      {/* Persona Insights */}
+      {/* === Persona-Analyse === */}
       {report.persona_breakdown?.length > 0 && (
         <div className="card p-6 animate-slide-up">
           <div className="flex items-center gap-2 mb-4">
@@ -386,15 +458,22 @@ export default function SimulationResultPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
               </svg>
             </div>
-            <h3 style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 700, color: "var(--color-purple)" }}>Persona-Analyse</h3>
+            <h3 style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Persona-Analyse</h3>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {report.persona_breakdown.map((pi, i) => (
-              <div key={i} className="flex gap-3 items-start text-sm">
-                <span className="badge shrink-0" style={{ background: "rgba(124,58,237,0.1)", color: "var(--color-purple)", fontSize: 10 }}>
-                  {pi.segment}
-                </span>
-                <span className="text-text-muted">{pi.reason}</span>
+              <div key={i} className="rounded-xl p-3.5" style={{ background: "var(--color-border)" }}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded" style={{
+                    fontFamily: "var(--font-mono)",
+                    background: "rgba(124,58,237,0.15)",
+                    color: "var(--color-purple)",
+                  }}>
+                    {pi.preferred_variant}
+                  </span>
+                  <span className="text-sm font-medium" style={{ fontFamily: "var(--font-display)" }}>{pi.segment}</span>
+                </div>
+                <p className="text-sm text-text-muted ml-0.5">{pi.reason}</p>
               </div>
             ))}
           </div>
@@ -415,7 +494,6 @@ export default function SimulationResultPage() {
   );
 }
 
-// Helper: Extract variant texts for display
 function extractVariantTexts(simType: string, inputData: Record<string, unknown>): string[] {
   switch (simType) {
     case "copy": return (inputData.variants as string[]) ?? [];

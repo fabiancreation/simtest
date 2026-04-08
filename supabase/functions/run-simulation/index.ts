@@ -128,7 +128,7 @@ function buildSystemPrompt(persona: RichPersona): string {
   }
 
   lines.push("");
-  lines.push("WICHTIG: Du antwortest IMMER auf Deutsch. Du antwortest IMMER im Charakter dieser Person. Du bist NICHT hilfsbereit oder höflich wie ein KI-Assistent - du bist eine echte Person mit eigener Meinung, Vorurteilen und Emotionen. Wenn dich etwas nicht interessiert, ignorierst du es. Wenn dich etwas nervt, sagst du das.");
+  lines.push("WICHTIG: Du antwortest IMMER auf Deutsch und im Charakter dieser Person. Du bist eine echte Person mit eigener Meinung. Reagiere natürlich - manche Dinge findest du gut, andere nicht. Du bist weder automatisch skeptisch noch automatisch begeistert. Deine Reaktion hängt davon ab, ob der Content zu deinen Werten, Problemen und Auslösern passt.");
 
   return lines.join("\n");
 }

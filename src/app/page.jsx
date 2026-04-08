@@ -507,6 +507,8 @@ function PricingSection({ mobile, onCta }) {
 export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [waitlistError, setWaitlistError] = useState("");
   const [activeLevel, setActiveLevel] = useState(0);
   const [theme, setTheme] = useState("light");
   const w = useWindowWidth();
@@ -516,9 +518,27 @@ export default function LandingPage() {
   // Theme global setzen damit Sub-Komponenten es nutzen koennen
   C = themes[theme];
 
-  const handleSubmit = useCallback(() => {
-    if (email && email.includes("@")) setSubmitted(true);
-  }, [email]);
+  const handleSubmit = useCallback(async () => {
+    if (!email || !email.includes("@") || submitting) return;
+    setSubmitting(true);
+    setWaitlistError("");
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setWaitlistError("Fehler beim Speichern. Bitte versuche es erneut.");
+      }
+    } catch {
+      setWaitlistError("Netzwerkfehler. Bitte versuche es erneut.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [email, submitting]);
 
   const canvasWidth = mobile ? Math.min(w - 64, 400) : 380;
   const canvasHeight = mobile ? 180 : 260;
@@ -925,11 +945,14 @@ export default function LandingPage() {
           </div>
 
           {!submitted ? (
-            <div style={{ display: "flex", gap: 10, flexDirection: mobile ? "column" : "row", justifyContent: "center", alignItems: "stretch", maxWidth: 420, margin: "0 auto" }}>
-              <input type="email" placeholder="deine@email.de" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSubmit()} />
-              <button className="cta-main" onClick={handleSubmit} style={{ background: `linear-gradient(135deg, ${C.accentDim}, ${C.accent})`, color: C.bg, fontWeight: 700, fontSize: 15, padding: "14px 24px", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "'Outfit',sans-serif", animation: "pulseGlow 3s ease-in-out infinite", whiteSpace: "nowrap", transition: "all 0.2s ease" }}>
-                Platz sichern →
-              </button>
+            <div style={{ display: "flex", gap: 10, flexDirection: "column", justifyContent: "center", alignItems: "center", maxWidth: 420, margin: "0 auto" }}>
+              <div style={{ display: "flex", gap: 10, flexDirection: mobile ? "column" : "row", width: "100%", alignItems: "stretch" }}>
+                <input type="email" placeholder="deine@email.de" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSubmit()} />
+                <button className="cta-main" onClick={handleSubmit} disabled={submitting} style={{ background: `linear-gradient(135deg, ${C.accentDim}, ${C.accent})`, color: C.bg, fontWeight: 700, fontSize: 15, padding: "14px 24px", border: "none", borderRadius: 10, cursor: submitting ? "wait" : "pointer", fontFamily: "'Outfit',sans-serif", animation: submitting ? "none" : "pulseGlow 3s ease-in-out infinite", whiteSpace: "nowrap", transition: "all 0.2s ease", opacity: submitting ? 0.7 : 1 }}>
+                  {submitting ? "Wird gespeichert..." : "Platz sichern →"}
+                </button>
+              </div>
+              {waitlistError && <p style={{ color: "#ef4444", fontSize: 13, marginTop: 4 }}>{waitlistError}</p>}
             </div>
           ) : (
             <div style={{ background: C.accentGlow, border: `1px solid ${C.accentDim}`, borderRadius: 12, padding: 20, maxWidth: 360, margin: "0 auto", animation: "slideUp 0.5s ease-out" }}>

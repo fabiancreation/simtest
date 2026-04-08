@@ -2,22 +2,49 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [mode, setMode] = useState<"password" | "magic">("password");
+  const router = useRouter();
+
+  async function handlePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+    if (err) {
+      setError("Login fehlgeschlagen. Prüfe E-Mail und Passwort.");
+    } else {
+      router.push("/dashboard");
+    }
+  }
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error: err } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/callback` },
     });
     setLoading(false);
-    if (!error) setSent(true);
+    if (err) {
+      setError("Magic Link konnte nicht gesendet werden.");
+    } else {
+      setSent(true);
+    }
   }
 
   async function handleGoogle() {
@@ -69,7 +96,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <form onSubmit={handleMagicLink} className="space-y-4">
+        <form onSubmit={mode === "password" ? handlePassword : handleMagicLink} className="space-y-4">
           <input
             type="email"
             value={email}
@@ -78,14 +105,40 @@ export default function LoginPage() {
             required
             className="w-full rounded-lg border border-[#1e1e2e] bg-[#12121a] px-4 py-3 text-[#e8e8f0] placeholder-[#5a5a72] focus:border-[#6ee7b7] focus:outline-none transition-colors"
           />
+          {mode === "password" && (
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Passwort"
+              required
+              className="w-full rounded-lg border border-[#1e1e2e] bg-[#12121a] px-4 py-3 text-[#e8e8f0] placeholder-[#5a5a72] focus:border-[#6ee7b7] focus:outline-none transition-colors"
+            />
+          )}
+
+          {error && (
+            <p className="text-sm text-red-400">{error}</p>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-[#6ee7b7] px-4 py-3 font-medium text-[#0a0a0f] hover:bg-[#34d399] disabled:opacity-50 transition-colors"
           >
-            {loading ? "Wird gesendet..." : "Magic Link senden"}
+            {loading
+              ? "Wird geladen..."
+              : mode === "password"
+              ? "Einloggen"
+              : "Magic Link senden"}
           </button>
         </form>
+
+        <button
+          onClick={() => { setMode(mode === "password" ? "magic" : "password"); setError(""); }}
+          className="w-full text-sm text-[#5a5a72] hover:text-[#8888a0] transition-colors"
+        >
+          {mode === "password" ? "Stattdessen Magic Link nutzen" : "Mit Passwort einloggen"}
+        </button>
       </div>
     </div>
   );

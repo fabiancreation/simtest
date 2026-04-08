@@ -117,9 +117,11 @@ export const PERSONA_PRESETS: PersonaPreset[] = [
   { id: "custom", label: "Eigene Persona", desc: "Selbst konfigurieren", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z", agents: null },
 ];
 
-export const AGENT_COUNTS = [50, 100, 200, 500, 1000] as const;
+export const AGENT_COUNTS = [5, 10, 50, 100, 200, 500, 1000] as const;
 
 export const AGENT_COUNT_HINTS: Record<number, string> = {
+  5: "Minimal - nur zum schnellen Testen des Flows",
+  10: "Klein - gut für erste Tests ohne Timeout-Risiko",
   50: "Schnell & günstig - gut für erste Richtungstests",
   100: "Schnell & günstig - gut für erste Richtungstests",
   200: "Gute Balance aus Geschwindigkeit und Aussagekraft",

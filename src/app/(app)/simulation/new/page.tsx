@@ -200,7 +200,7 @@ export default function NewSimulationPage() {
   }, [simType, personaPreset, personaId, agentCount, variants, offer, priceSingle, priceVariants, adVariants, adPlatform, adFormat, urls, landingGoal, desiredAction, campaignBrief, campaignChannels, crisisMessage, crisisType, crisisChannel, counterEnabled, counterMessage, focusQuestion, context, simDepth, config, router]);
 
   return (
-    <div className="max-w-[680px] mx-auto">
+    <div className="max-w-[680px]">
       {/* Header */}
       <div className="mb-10 animate-slide-up">
         <h1 style={{ fontFamily: "var(--font-display)", fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em" }}>

@@ -901,6 +901,120 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* PERSONA CROWD — 200 einzigartige Charaktere */}
+      <section style={{ padding: mobile ? "0 0 52px" : "0 0 84px" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 14, fontWeight: 600, color: C.accent, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 12 }}>200 Individuen</div>
+            <h3 style={{ fontFamily: "'Outfit',sans-serif", fontSize: mobile ? 22 : 34, fontWeight: 800, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 14 }}>
+              Jede Persona ist einzigartig
+            </h3>
+            <p style={{ fontSize: mobile ? 14 : 15, color: C.textMuted, lineHeight: 1.65, maxWidth: 540, margin: "0 auto" }}>
+              Nicht 200 Kopien. 200 individuelle Charaktere mit eigenem Namen, Beruf, Persönlichkeit, Werten und Kaufverhalten — statistisch verteilt wie eine echte Zielgruppe.
+            </p>
+          </div>
+
+          {/* Crowd Grid */}
+          <div style={{ position: "relative", marginBottom: 24 }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${mobile ? 8 : 16}, 1fr)`,
+              gap: mobile ? 4 : 6,
+              padding: mobile ? 12 : 20,
+              background: C.bgCard,
+              border: `1px solid ${C.border}`,
+              borderRadius: 16,
+              position: "relative",
+              overflow: "hidden",
+            }}>
+              {/* Glow effects */}
+              <div style={{ position: "absolute", top: -30, left: "20%", width: 120, height: 120, background: C.accent + "0a", borderRadius: "50%", filter: "blur(40px)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", bottom: -30, right: "30%", width: 100, height: 100, background: C.purple + "0a", borderRadius: "50%", filter: "blur(35px)", pointerEvents: "none" }} />
+              {(() => {
+                const personas = [];
+                const vornamen = ["Thomas","Stefan","Michael","Andreas","Markus","Lisa","Anna","Julia","Laura","Lena","Sarah","Maria","Sophie","Hannah","Lea","Daniel","Tobias","Alexander","Florian","Felix","Sandra","Nicole","Katharina","Claudia","Petra","Jonas","Leon","Emre","Nico","Tim","Mia","Emma","Jana","Miriam","Birgit"];
+                const berufe = ["Coach","Designerin","Entwickler","Lehrerin","Berater","Ärztin","Ingenieur","Gründerin","Freelancer","Managerin","Student","Pflegerin","Handwerker","Journalistin","Architektin"];
+                const colors = [C.accent, C.purple, C.blue, C.accentDim, "#f59e0b", "#ec4899", "#14b8a6", "#8b5cf6"];
+                for (let i = 0; i < (mobile ? 64 : 192); i++) {
+                  const name = vornamen[i % vornamen.length];
+                  const beruf = berufe[i % berufe.length];
+                  const color = colors[i % colors.length];
+                  const initials = name[0];
+                  const delay = (i * 15) % 3000;
+                  personas.push(
+                    <div key={i} className="persona-dot" style={{
+                      position: "relative",
+                      aspectRatio: "1",
+                      borderRadius: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: mobile ? 8 : 10,
+                      fontWeight: 700,
+                      fontFamily: "'JetBrains Mono',monospace",
+                      color: color,
+                      background: color + "12",
+                      border: `1px solid ${color}25`,
+                      cursor: "default",
+                      animation: `breathe 3s ease-in-out ${delay}ms infinite`,
+                      transition: "transform 0.2s, box-shadow 0.2s",
+                    }}
+                    title={`${name}, ${20 + (i % 40)} J., ${beruf}`}
+                    >
+                      {initials}
+                    </div>
+                  );
+                }
+                return personas;
+              })()}
+            </div>
+          </div>
+
+          {/* Beispiel-Karten */}
+          <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr 1fr", gap: 12 }}>
+            {[
+              { name: "Sabine Meier", age: 47, beruf: "Business Coach", city: "Stuttgart", trait: "Gewissenhaft, ROI-orientiert", color: C.accent, values: "Zeitfreiheit, Impact", objection: "Zu teuer ohne Proof" },
+              { name: "Emre Yilmaz", age: 24, beruf: "UX Designer", city: "Frankfurt", trait: "Offen, trend-affin", color: C.purple, values: "Authentizität, Wachstum", objection: "Wirkt wie Boomer-Marketing" },
+              { name: "Dr. Katharina Weiß", age: 41, beruf: "Marketing-Leiterin", city: "Köln", trait: "Analytisch, datengetrieben", color: C.blue, values: "Effizienz, Messbarkeit", objection: "Kein messbarer Business Case" },
+            ].map((p, i) => (
+              <div key={i} className="card-hover" style={{
+                background: C.bgCard,
+                border: `1px solid ${C.border}`,
+                borderRadius: 14,
+                padding: mobile ? 16 : 20,
+                position: "relative",
+                overflow: "hidden",
+              }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${p.color}40, ${p.color})` }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: p.color + "18",
+                    border: `1.5px solid ${p.color}30`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 13, fontWeight: 800, color: p.color,
+                    fontFamily: "'JetBrains Mono',monospace",
+                  }}>{p.name.split(" ").map(n => n[0]).join("")}</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Outfit',sans-serif" }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: C.textDim }}>{p.age} J. · {p.beruf} · {p.city}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{p.trait}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                  {p.values.split(", ").map((v, j) => (
+                    <span key={j} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: p.color + "12", color: p.color, fontWeight: 500 }}>{v}</span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>
+                  <span style={{ color: C.red, marginRight: 4 }}>!</span>{p.objection}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* HONESTY */}
       <section style={{ padding: mobile ? "0 0 44px" : "0 0 64px" }}>
         <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 20px" }}>

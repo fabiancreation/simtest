@@ -303,6 +303,18 @@ body {
   }
 }
 
+/* Persona Crowd Animation */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.persona-dot:hover {
+  transform: scale(1.3) !important;
+  box-shadow: 0 0 12px currentColor;
+  z-index: 10;
+  opacity: 1 !important;
+}
+
 /* Print Styles für PDF-Export */
 @media print {
   body { background: white !important; color: #0f172a !important; font-size: 11px !important; }

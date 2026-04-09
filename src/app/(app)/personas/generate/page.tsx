@@ -359,6 +359,30 @@ export default function GeneratePersonaPage() {
                     </div>
                   )}
 
+                  {/* Education */}
+                  {seg.education?.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-text-dim font-medium uppercase tracking-wider mr-1">Bildung</span>
+                      {seg.education.map((e) => (
+                        <span key={e} className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--color-surface-alt, rgba(255,255,255,0.05))", color: "var(--color-text-muted)" }}>
+                          {e}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Media Consumption */}
+                  {seg.media_consumption?.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-text-dim font-medium uppercase tracking-wider mr-1">Medien</span>
+                      {seg.media_consumption.map((m) => (
+                        <span key={m} className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--color-surface-alt, rgba(255,255,255,0.05))", color: "var(--color-text-muted)" }}>
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Pain Points */}
                   {seg.pain_points?.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap">

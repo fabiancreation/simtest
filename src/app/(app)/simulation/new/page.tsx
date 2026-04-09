@@ -307,21 +307,30 @@ export default function NewSimulationPage() {
         {!personaPreset && (
           <div className="mt-3 animate-slide-up">
             {customProfiles.length > 0 ? (
-              <select value={personaId ?? ""} onChange={(e) => {
-                const id = e.target.value || null;
-                setPersonaId(id);
-                setPersonaPreset(null);
-                if (id) {
-                  const profile = customProfiles.find(p => p.id === id);
-                  if (profile?.agent_count_default) setAgentCount(profile.agent_count_default);
-                }
-              }}
-                className="input cursor-pointer">
-                <option value="">Eigene Persona wählen...</option>
-                {customProfiles.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.agent_count_default} Agenten)</option>
-                ))}
-              </select>
+              <div className="space-y-2">
+                <select value={personaId ?? ""} onChange={(e) => {
+                  const id = e.target.value || null;
+                  setPersonaId(id);
+                  setPersonaPreset(null);
+                  if (id) {
+                    const profile = customProfiles.find(p => p.id === id);
+                    if (profile?.agent_count_default) setAgentCount(profile.agent_count_default);
+                  }
+                }}
+                  className="input cursor-pointer">
+                  <option value="">Eigene Persona wählen...</option>
+                  {customProfiles.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.agent_count_default} Agenten)</option>
+                  ))}
+                </select>
+                <a href="/personas/new" className="text-xs font-medium flex items-center gap-1 transition-colors hover:opacity-80"
+                  style={{ color: "var(--color-accent)" }}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Neue Persona erstellen
+                </a>
+              </div>
             ) : (
               <div className="card p-4 flex items-center justify-between">
                 <p className="text-sm text-text-muted">Du hast noch keine eigenen Personas erstellt.</p>

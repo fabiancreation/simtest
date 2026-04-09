@@ -231,36 +231,91 @@ export default function PersonaCrowdSection({ C, mobile }) {
         </div>
 
         {/* Charakter-Karten */}
-        <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr 1fr", gap: 14, marginTop: 20 }}>
           {[
-            { name: "Sabine Meier", age: 47, beruf: "Business Coach", city: "Stuttgart", trait: "Gewissenhaft, ROI-orientiert", color: C.accent, values: "Zeitfreiheit, Impact", objection: "Zu teuer ohne Proof" },
-            { name: "Emre Yilmaz", age: 24, beruf: "UX Designer", city: "Frankfurt", trait: "Offen, trend-affin", color: C.purple, values: "Authentizität, Wachstum", objection: "Wirkt wie Boomer-Marketing" },
-            { name: "Dr. Katharina Weiß", age: 41, beruf: "Marketing-Leiterin", city: "Köln", trait: "Analytisch, datengetrieben", color: C.blue, values: "Effizienz, Messbarkeit", objection: "Kein messbarer Business Case" },
+            { name: "Sabine Meier", age: 47, beruf: "Business Coach", city: "Stuttgart", einkommen: "4.200 EUR", bildung: "Master", color: C.accent,
+              personality: "Plant Entscheidungen gründlich durch, braucht Fakten und ROI-Argumente. Teilt Erfahrungen gern mit Peers.",
+              values: ["Zeitfreiheit", "Impact", "Wachstum"], painPoints: ["Kein Budget für echte Marktforschung", "Feast-or-Famine bei der Auftragslage"],
+              triggers: ["Klare Zeitersparnis", "Empfehlung von Peers"], objection: "Zu teuer ohne nachweisbaren ROI",
+              medien: ["LinkedIn", "Podcasts"], bigFive: { O: 7, C: 9, E: 6, A: 5, N: 3 } },
+            { name: "Emre Yilmaz", age: 24, beruf: "UX Designer", city: "Frankfurt", einkommen: "2.100 EUR", bildung: "Bachelor", color: C.purple,
+              personality: "Probiert ständig Neues aus, hoher Bullshit-Detektor. Kauft wenn Peers es empfehlen, nicht wenn Ads es pushen.",
+              values: ["Authentizität", "Wachstum", "Erlebnis"], painPoints: ["Budget reicht nicht für alle Tools", "Schwer zwischen echtem und bezahltem Content zu unterscheiden"],
+              triggers: ["Trend auf TikTok gesehen", "Rabattcode von Creator"], objection: "Wirkt wie Boomer-Marketing, kein UGC-Potenzial",
+              medien: ["TikTok", "Instagram", "YouTube"], bigFive: { O: 9, C: 4, E: 8, A: 6, N: 5 } },
+            { name: "Dr. Katharina Weiß", age: 41, beruf: "Marketing-Leiterin", city: "Köln", einkommen: "6.800 EUR", bildung: "Promotion", color: C.blue,
+              personality: "Analytisch und datengetrieben, entscheidet selten allein. Braucht Case Studies aus gleicher Branche und DSGVO-Konformität.",
+              values: ["Effizienz", "Messbarkeit", "Risikominimierung"], painPoints: ["Budget muss intern gerechtfertigt werden", "Tool-Überflutung"],
+              triggers: ["Klarer ROI mit Zahlen belegt", "Case Study aus gleicher Branche"], objection: "Kein messbarer Business Case, Datenschutz-Bedenken",
+              medien: ["LinkedIn", "Fachmedien"], bigFive: { O: 6, C: 9, E: 5, A: 4, N: 3 } },
           ].map((p, i) => (
             <div key={i} className="card-hover" style={{
               background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14,
               padding: mobile ? 16 : 20, position: "relative", overflow: "hidden",
             }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${p.color}40, ${p.color})` }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <div style={{
-                  width: 36, height: 36, borderRadius: 10, background: p.color + "18",
+                  width: 40, height: 40, borderRadius: 10, background: p.color + "18",
                   border: `1.5px solid ${p.color}30`, display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 13, fontWeight: 800, color: p.color, fontFamily: "'JetBrains Mono',monospace",
                 }}>{p.name.split(" ").map(n => n[0]).join("")}</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Outfit',sans-serif" }}>{p.name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Outfit',sans-serif" }}>{p.name}</div>
                   <div style={{ fontSize: 11, color: C.textDim }}>{p.age} J. · {p.beruf} · {p.city}</div>
+                  <div style={{ fontSize: 10, color: C.textDim }}>{p.einkommen}/Monat · {p.bildung}</div>
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{p.trait}</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                {p.values.split(", ").map((v, j) => (
-                  <span key={j} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: p.color + "12", color: p.color, fontWeight: 500 }}>{v}</span>
+              {/* Personality */}
+              <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5, marginBottom: 10 }}>{p.personality}</div>
+              {/* Big Five Mini-Bars */}
+              <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+                {Object.entries(p.bigFive).map(([trait, val]) => (
+                  <div key={trait} style={{ flex: 1, textAlign: "center" }}>
+                    <div style={{ fontSize: 8, fontFamily: "'JetBrains Mono',monospace", color: C.textDim, marginBottom: 2 }}>{trait}</div>
+                    <div style={{ height: 3, borderRadius: 2, background: C.border }}>
+                      <div style={{ height: 3, borderRadius: 2, width: `${val * 10}%`, background: p.color, transition: "width 0.3s" }} />
+                    </div>
+                  </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic" }}>
-                <span style={{ color: C.red, marginRight: 4 }}>!</span>{p.objection}
+              {/* Values */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: C.textDim, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>Werte</div>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {p.values.map((v, j) => (
+                    <span key={j} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: p.color + "12", color: p.color, fontWeight: 500 }}>{v}</span>
+                  ))}
+                </div>
+              </div>
+              {/* Pain Points */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: C.textDim, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>Pain Points</div>
+                {p.painPoints.map((pp, j) => (
+                  <div key={j} style={{ fontSize: 11, color: C.textMuted, padding: "1px 0", display: "flex", gap: 4, alignItems: "baseline" }}>
+                    <span style={{ color: C.red, fontSize: 8 }}>●</span>{pp}
+                  </div>
+                ))}
+              </div>
+              {/* Kaufauslöser */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: C.textDim, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>Kauft wenn</div>
+                {p.triggers.map((t, j) => (
+                  <div key={j} style={{ fontSize: 11, color: C.textMuted, padding: "1px 0", display: "flex", gap: 4, alignItems: "baseline" }}>
+                    <span style={{ color: C.accent, fontSize: 8 }}>●</span>{t}
+                  </div>
+                ))}
+              </div>
+              {/* Medien */}
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                {p.medien.map((m, j) => (
+                  <span key={j} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, border: `1px solid ${C.border}`, color: C.textDim }}>{m}</span>
+                ))}
+              </div>
+              {/* Einwand */}
+              <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic", borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                <span style={{ color: C.red, marginRight: 4, fontStyle: "normal", fontWeight: 600 }}>!</span>{p.objection}
               </div>
             </div>
           ))}

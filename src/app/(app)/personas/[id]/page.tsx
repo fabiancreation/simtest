@@ -60,6 +60,11 @@ function ChipGrid({ options, selected, onChange, multi = true, cols = 3 }: {
   options: { id: string; label: string }[]; selected: string[] | string;
   onChange: (v: string[] | string) => void; multi?: boolean; cols?: number;
 }) {
+  const optionIds = new Set(options.map(o => o.id));
+  // Custom-Werte die nicht in den Options sind (z.B. vom AI-Generator)
+  const customValues = multi
+    ? (selected as string[]).filter(s => !optionIds.has(s))
+    : [];
   return (
     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
       {options.map(o => {
@@ -81,6 +86,20 @@ function ChipGrid({ options, selected, onChange, multi = true, cols = 3 }: {
           </button>
         );
       })}
+      {customValues.map(v => (
+        <button key={v} type="button" onClick={() => {
+          const sel = selected as string[];
+          onChange(sel.filter(s => s !== v));
+        }}
+          className="px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer text-center"
+          style={{
+            border: "1.5px solid var(--color-accent)",
+            background: "var(--color-accent-glow)",
+            color: "var(--color-accent)",
+          }}>
+          {v} ✕
+        </button>
+      ))}
     </div>
   );
 }

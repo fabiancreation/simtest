@@ -1,6 +1,6 @@
 # SimTest — Projekt-Status
 
-> Stand: 9. April 2026 (Nacht)
+> Stand: 10. April 2026
 > Deployed: Vercel (via GitHub `fabiancreation/simtest`, auto-deploy auf main)
 > Supabase: Shared mit Funnel Architect (Ref: `ajrshllvafqpbdhxhgsh`)
 > Edge Function: `run-simulation` deployed (150s Timeout, 5 Module)
@@ -76,6 +76,7 @@
 - Persona-Pool: Unique-Constraint ohne agent_count (013)
 - Share-Tokens: `share_token`, `share_enabled`, `share_expires_at` (014)
 - Monatlicher Runs-Reset via pg_cron (015)
+- Persona-Priorität: primary/secondary/niche (016)
 
 ---
 
@@ -102,6 +103,11 @@
 - ✅ Light/Dark Mode
 - ✅ Rate Limiting (10/min)
 - ✅ Monatlicher Runs-Reset (pg_cron)
+- ✅ Zielgruppen-Generator (aus URL/Produktbeschreibung, 2-3 Segmente)
+- ✅ Persona-Priorität (Primär/Sekundär/Nische) als DB-Feld + UI
+- ✅ Kaufbereitschafts-Toggle (Kalt/Warm/Heiß) pro Simulation
+- ✅ Simulation kopieren (vorausgefülltes Formular)
+- ✅ Report löschen (Übersicht + Detail)
 
 ---
 
@@ -116,10 +122,11 @@
 
 ## TODOs — Nächste Session
 
-### Priorität 1 — Kosten & Qualität
+### Priorität 1 — Nächste Session
 
 | # | Aufgabe | Beschreibung |
 |---|---------|-------------|
+| P1 | **Projekte** | `projects`-Tabelle, CRUD-API, Projekt-Selector, Filter auf Personas + Reports. Grundfunktion für alle Pläne. ~30-45 Min. |
 | N1 | **Gemini Flash als LLM** | Agenten-Calls auf Gemini Flash umstellen (20x günstiger als Haiku). Haiku nur für Synthese. Google AI API Key nötig. |
 | N4 | **Restliche SimTypen testen** | Pricing, Ad Creative, Kampagnen-Check, Krisentest End-to-End durchspielen und Bugs fixen. |
 | F1 | **Multi-Runden testen** | 2-3 Runden mit Netzwerk-Effekt (Agenten sehen Nachbar-Reaktionen). Bisher nur 1 Runde getestet. |
@@ -179,10 +186,12 @@
 | `src/app/api/simulations/[id]/rename/route.ts` | API: Report umbenennen |
 | `src/app/api/simulations/[id]/route.ts` | API: Simulation DELETE |
 | `src/app/api/personas/[id]/route.ts` | API: Persona GET/PATCH/DELETE |
+| `src/app/api/personas/generate-from-product/route.ts` | API: Zielgruppen-Generator |
+| `src/app/(app)/personas/generate/page.tsx` | Zielgruppe aus Produkt generieren |
 | `src/types/simulation.ts` | Frontend Types + SimType Config + Presets |
 | `docs/STYLEGUIDE.md` | Design-Tokens + Komponenten-Regeln |
 | `docs/STRATEGY-REDESIGN.md` | Konzept: Multi-Step Funnel-Simulation |
 
 ---
 
-*Letzte Aktualisierung: 9. April 2026 (Nacht)*
+*Letzte Aktualisierung: 10. April 2026*

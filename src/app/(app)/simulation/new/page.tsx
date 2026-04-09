@@ -268,7 +268,7 @@ export default function NewSimulationPage() {
     } finally {
       setLoading(false);
     }
-  }, [simType, personaPreset, personaId, agentCount, variants, offer, priceSingle, priceVariants, adVariants, adPlatform, adFormat, urls, landingGoal, desiredAction, campaignBrief, campaignChannels, crisisMessage, crisisType, crisisChannel, counterEnabled, counterMessage, focusQuestion, context, simDepth, config, router]);
+  }, [simType, personaPreset, personaId, agentCount, variants, offer, priceSingle, priceVariants, adVariants, adPlatform, adFormat, urls, landingGoal, desiredAction, campaignBrief, campaignGoal, campaignChannels, crisisMessage, crisisType, crisisChannel, counterEnabled, counterMessage, strategyIdea, strategyMarket, strategyCompetitors, strategyPricing, focusQuestion, context, audienceWarmth, simDepth, config, router]);
 
   return (
     <div className="max-w-[680px]">

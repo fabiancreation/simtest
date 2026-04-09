@@ -106,7 +106,7 @@ Jede Persona als JSON-Objekt:
 // AGENT BUILDER
 // ============================================
 
-function buildSystemPrompt(persona: RichPersona): string {
+function buildSystemPrompt(persona: RichPersona, platformBehavior?: { ignore_probability: number; comment_probability: number; share_probability: number; like_probability: number }): string {
   const lines: string[] = [];
   lines.push(`Du bist ${persona.name}, ${persona.age} Jahre alt, ${persona.gender}, ${persona.occupation} aus ${persona.location}.`);
 
@@ -127,13 +127,36 @@ function buildSystemPrompt(persona: RichPersona): string {
     lines.push(`Du nutzt vor allem: ${persona.media_primary.join(", ")}. Du vertraust: ${persona.trust_sources.join(", ")}.`);
   }
 
+  // Platform Behavior als natürlichsprachliche Tendenz
+  if (platformBehavior) {
+    const behaviorHints: string[] = [];
+    if (platformBehavior.ignore_probability >= 0.5) {
+      behaviorHints.push("Du ignorierst die meisten Inhalte in deinem Feed");
+    } else if (platformBehavior.ignore_probability <= 0.3) {
+      behaviorHints.push("Du reagierst auf vieles was du siehst");
+    }
+    if (platformBehavior.comment_probability >= 0.3) {
+      behaviorHints.push("du kommentierst gern");
+    } else if (platformBehavior.comment_probability <= 0.15) {
+      behaviorHints.push("du kommentierst selten");
+    }
+    if (platformBehavior.share_probability >= 0.15) {
+      behaviorHints.push("du teilst Inhalte die dich begeistern");
+    } else if (platformBehavior.share_probability <= 0.05) {
+      behaviorHints.push("du teilst fast nie etwas");
+    }
+    if (behaviorHints.length > 0) {
+      lines.push(`Dein Online-Verhalten: ${behaviorHints.join(", ")}.`);
+    }
+  }
+
   lines.push("");
   lines.push("WICHTIG: Du antwortest IMMER auf Deutsch und im Charakter dieser Person. Du bist eine echte Person mit eigener Meinung. Reagiere natürlich - manche Dinge findest du gut, andere nicht. Du bist weder automatisch skeptisch noch automatisch begeistert. Deine Reaktion hängt davon ab, ob der Content zu deinen Werten, Problemen und Auslösern passt.");
 
   return lines.join("\n");
 }
 
-function buildAgents(personas: RichPersona[], variants: Variant[]): Agent[] {
+function buildAgents(personas: RichPersona[], variants: Variant[], platformBehavior?: { ignore_probability: number; comment_probability: number; share_probability: number; like_probability: number }): Agent[] {
   const agents: Agent[] = [];
   const agentsPerVariant = Math.floor(personas.length / variants.length);
 
@@ -151,7 +174,7 @@ function buildAgents(personas: RichPersona[], variants: Variant[]): Agent[] {
         buying_triggers: personas[i].buying_triggers ?? personas[i].buy_triggers ?? [],
         buying_blockers: personas[i].buying_blockers ?? personas[i].objections ?? [],
       },
-      systemPrompt: buildSystemPrompt(personas[i]),
+      systemPrompt: buildSystemPrompt(personas[i], platformBehavior),
       assignedVariant: variants[variantIndex].id,
       connections: [],
     });
@@ -165,14 +188,52 @@ function buildAgents(personas: RichPersona[], variants: Variant[]): Agent[] {
 // ============================================
 
 // Kontext-Framing je nach Simulationstyp
-function getSimTypeFraming(simType: string): { scenario: string; scenarioRepeat: string; actionContext: string } {
+function getSimTypeFraming(simType: string, userContext?: string): { scenario: string; scenarioRepeat: string; actionContext: string } {
   switch (simType) {
-    case "copy":
+    case "copy": {
+      // Dynamisches Framing basierend auf dem Einsatzort
+      const ctx = userContext?.toLowerCase() ?? "";
+      if (ctx.includes("newsletter") || ctx.includes("e-mail") || ctx.includes("email") || ctx.includes("betreff")) {
+        return {
+          scenario: "Du öffnest dein E-Mail-Postfach und siehst diesen Betreff/diese E-Mail",
+          scenarioRepeat: "Du siehst die E-Mail nochmal in deinem Postfach",
+          actionContext: "auf diese E-Mail",
+        };
+      }
+      if (ctx.includes("google") || ctx.includes("search") || ctx.includes("suchanzeige") || ctx.includes("sea")) {
+        return {
+          scenario: "Du googelst nach einer Lösung für dein Problem und siehst diese Anzeige in den Suchergebnissen",
+          scenarioRepeat: "Du siehst die gleiche Anzeige bei einer erneuten Suche",
+          actionContext: "auf diese Suchanzeige",
+        };
+      }
+      if (ctx.includes("produktbeschreibung") || ctx.includes("produkttext") || ctx.includes("shop") || ctx.includes("amazon")) {
+        return {
+          scenario: "Du stöberst in einem Online-Shop und liest diese Produktbeschreibung",
+          scenarioRepeat: "Du schaust dir die Produktbeschreibung nochmal an",
+          actionContext: "auf diese Produktbeschreibung",
+        };
+      }
+      if (ctx.includes("headline") || ctx.includes("überschrift") || ctx.includes("blog") || ctx.includes("artikel")) {
+        return {
+          scenario: "Du scrollst durch dein News-Feed und siehst diese Überschrift/diesen Artikel",
+          scenarioRepeat: "Du siehst den Artikel nochmal",
+          actionContext: "auf diesen Artikel",
+        };
+      }
+      if (ctx.includes("slogan") || ctx.includes("claim") || ctx.includes("tagline")) {
+        return {
+          scenario: "Du siehst diesen Slogan/Claim einer Marke",
+          scenarioRepeat: "Du begegnest dem Slogan erneut",
+          actionContext: "auf diesen Slogan",
+        };
+      }
       return {
         scenario: "Du scrollst durch deinen Social-Media-Feed und siehst diesen Post",
         scenarioRepeat: "Du siehst denselben Post nochmal in deinem Feed",
         actionContext: "auf diesen Post",
       };
+    }
     case "product":
       return {
         scenario: "Stelle dir vor: Du hast ein konkretes Problem und suchst aktiv nach einer Lösung. Du gehörst genau zur Zielgruppe dieses Angebots. Du stößt auf folgendes Angebot",
@@ -199,8 +260,8 @@ function getSimTypeFraming(simType: string): { scenario: string; scenarioRepeat:
       };
     case "campaign":
       return {
-        scenario: "Du begegnest dieser Kampagne über mehrere Kanäle",
-        scenarioRepeat: "Du siehst die Kampagne erneut",
+        scenario: "Du wirst über verschiedene Kanäle von dieser Kampagne angesprochen. Lies das Briefing und stell dir vor, du begegnest der Kampagne im Alltag",
+        scenarioRepeat: "Du siehst die Kampagne erneut auf einem anderen Kanal",
         actionContext: "auf diese Kampagne",
       };
     case "crisis":
@@ -208,6 +269,12 @@ function getSimTypeFraming(simType: string): { scenario: string; scenarioRepeat:
         scenario: "Du liest diese Nachricht/Meldung in deinem Feed. Es betrifft eine Marke/ein Unternehmen das du kennst",
         scenarioRepeat: "Die Nachricht taucht erneut in deinem Feed auf",
         actionContext: "auf diese Nachricht",
+      };
+    case "strategy":
+      return {
+        scenario: "Jemand stellt dir folgende Geschäftsidee / Strategie vor und fragt nach deiner ehrlichen Einschätzung als potenzieller Kunde",
+        scenarioRepeat: "Du denkst nochmal über die Geschäftsidee nach",
+        actionContext: "auf diese Geschäftsidee",
       };
     default:
       return {
@@ -236,14 +303,18 @@ function buildUserMessage(
   previousReactions: Reaction[],
   allAgents: Agent[],
   simType: string,
+  userContext?: string,
 ): string {
-  const framing = getSimTypeFraming(simType);
+  const framing = getSimTypeFraming(simType, userContext);
+  const contextBlock = userContext?.trim()
+    ? `\nKontext: ${userContext.trim()}\n`
+    : "";
 
   if (round === 1) {
     return `${framing.scenario}:
 
 "${variant.content}"
-
+${contextBlock}
 Wie reagierst du ${framing.actionContext}?
 ${JSON_RESPONSE_FORMAT}`;
   }
@@ -253,7 +324,7 @@ ${JSON_RESPONSE_FORMAT}`;
   return `${framing.scenarioRepeat}:
 
 "${variant.content}"
-
+${contextBlock}
 ${neighborReactions.length > 0
     ? `Du siehst diese Reaktionen von Leuten die du kennst:\n${neighborReactions.join("\n")}\n`
     : "Bisher hat kaum jemand darauf reagiert."
@@ -363,6 +434,7 @@ async function simulateRound(
   round: number,
   previousReactions: Reaction[],
   simType: string,
+  userContext?: string,
 ): Promise<Reaction[]> {
   const BATCH_SIZE = 10;
   const reactions: Reaction[] = [];
@@ -373,7 +445,7 @@ async function simulateRound(
     const results = await Promise.allSettled(
       batch.map(async (agent) => {
         const variant = variants.find(v => v.id === agent.assignedVariant)!;
-        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType);
+        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext);
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
@@ -449,12 +521,30 @@ function extractRawVariants(simType: string, inputData: Record<string, unknown>)
       const goal = inputData.landing_goal as string ?? "";
       return urls.map(url => `Landing Page: ${url}\nZiel: ${goal}`);
     }
-    case "campaign": return [inputData.campaign_brief as string ?? ""];
+    case "campaign": {
+      const brief = inputData.campaign_brief as string ?? "";
+      const channels = (inputData.campaign_channels as string[]) ?? [];
+      const channelInfo = channels.length > 0 ? `\n\nKanäle: ${channels.join(", ")}` : "";
+      const goal = inputData.campaign_goal as string;
+      const goalInfo = goal ? `\nKampagnenziel: ${goal}` : "";
+      return [`${brief}${channelInfo}${goalInfo}`];
+    }
     case "crisis": {
       const msg = inputData.crisis_message as string ?? "";
       const counter = inputData.counter_message as string;
       if (counter) return [msg, `Nachricht: ${msg}\n\nReaktion: ${counter}`];
       return [msg];
+    }
+    case "strategy": {
+      const idea = inputData.strategy_idea as string ?? "";
+      const market = inputData.strategy_market as string ?? "";
+      const competitors = inputData.strategy_competitors as string;
+      const pricing = inputData.strategy_pricing as string;
+      const parts = [idea];
+      if (market) parts.push(`Zielmarkt: ${market}`);
+      if (competitors) parts.push(`Wettbewerber: ${competitors}`);
+      if (pricing) parts.push(`Geplante Preisgestaltung: ${pricing}`);
+      return [parts.join("\n\n")];
     }
     default: return [];
   }
@@ -702,8 +792,8 @@ Deno.serve(async (req) => {
     }
 
     // 4. Agenten bauen + Netzwerk
-    const agents = buildAgents(personas, variants);
     const presetData = PRESETS[sim.persona_preset ?? "dach_allgemein"];
+    const agents = buildAgents(personas, variants, presetData?.platform_behavior?.twitter_like);
     const topology = presetData?.network_topology;
     if (topology) {
       buildNetwork(agents, topology.type, topology.avg_connections);
@@ -727,11 +817,12 @@ Deno.serve(async (req) => {
 
     // 5. Multi-Runden-Simulation
     const allReactions: Reaction[] = [];
+    const userContext = sim.input_data.context as string | undefined;
 
     for (let round = 1; round <= totalRounds; round++) {
       await supabase.from("simulations").update({ current_round: round }).eq("id", simulationId);
 
-      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type);
+      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext);
       allReactions.push(...roundReactions);
 
       // Reaktionen in DB speichern
@@ -745,6 +836,8 @@ Deno.serve(async (req) => {
         internal_reasoning: r.internalReasoning,
         interest_level: r.interestLevel,
         credibility_rating: r.credibilityRating,
+        would_buy: r.wouldBuy,
+        biggest_objection: r.biggestObjection,
       }));
       for (let i = 0; i < reactionRows.length; i += 100) {
         await supabase.from("reactions").insert(reactionRows.slice(i, i + 100));

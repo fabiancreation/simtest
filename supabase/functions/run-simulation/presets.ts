@@ -55,8 +55,8 @@ export interface PresetData {
     pain_points: string[];
     buying_triggers: string[];
     buying_blockers: string[];
-    buyer_subtypes?: Record<string, { weight: number; traits: string; decision_time?: string; influence_radius?: string }>;
-    engagement_subtypes?: Record<string, { weight: number; traits: string; influence_radius: string }>;
+    buyer_subtypes?: Record<string, { weight: number; traits: string; decision_time?: string; influence_radius?: string; pain_points?: string[]; buying_triggers?: string[]; buying_blockers?: string[] }>;
+    engagement_subtypes?: Record<string, { weight: number; traits: string; influence_radius: string; pain_points?: string[]; buying_triggers?: string[]; buying_blockers?: string[] }>;
     decision_process?: {
       stakeholders: string[];
       avg_decision_time_weeks: number;
@@ -180,6 +180,101 @@ const BERUFE: Record<string, string[]> = {
   "dach_allgemein": ["Projektmanagerin", "Handwerksmeister", "Ärztin", "Lehrer", "Ingenieur", "Verkäuferin", "IT-Administrator", "Rechtsanwältin", "Sozialarbeiterin", "Architekt", "Polizist", "Journalistin", "Beamter", "Pflegekraft", "Unternehmerin"],
 };
 
+/** Baut einen reichhaltigen Persönlichkeitstext aus Big Five + Kontext */
+function buildPersonalityText(
+  bigFive: Record<string, number>,
+  age: number,
+  income: number,
+  subtype?: string,
+  subtypeTraits?: string,
+): string {
+  const parts: string[] = [];
+
+  // Big Five in natürliche Sprache (mit mehr Varianz als vorher)
+  const openness = bigFive.openness ?? 5;
+  const consc = bigFive.conscientiousness ?? 5;
+  const extra = bigFive.extraversion ?? 5;
+  const agree = bigFive.agreeableness ?? 5;
+  const neuro = bigFive.neuroticism ?? 5;
+
+  // Openness
+  if (openness >= 8) parts.push(pick(["experimentierfreudig und neugierig", "liebt neue Ideen und unkonventionelle Ansätze", "probiert ständig Neues aus"]));
+  else if (openness >= 6) parts.push(pick(["offen für Neues, aber nicht leichtgläubig", "interessiert sich für Trends, prüft aber kritisch"]));
+  else if (openness <= 3) parts.push(pick(["bevorzugt Bewährtes", "skeptisch gegenüber Hypes und Trends", "ändert ungern Gewohnheiten"]));
+
+  // Conscientiousness
+  if (consc >= 8) parts.push(pick(["plant alles durch bevor eine Entscheidung fällt", "braucht Struktur und klare Fakten", "sehr gründlich bei Kaufentscheidungen"]));
+  else if (consc <= 3) parts.push(pick(["entscheidet spontan aus dem Bauch", "lässt sich von Stimmungen leiten", "plant wenig voraus"]));
+
+  // Extraversion
+  if (extra >= 8) parts.push(pick(["teilt Erfahrungen gern mit anderen", "redet viel über Produkte die begeistern", "beeinflusst den Freundeskreis"]));
+  else if (extra >= 6) parts.push(pick(["tauscht sich gelegentlich mit Freunden über Käufe aus"]));
+  else if (extra <= 3) parts.push(pick(["recherchiert lieber allein als andere zu fragen", "behält Meinungen eher für sich", "entscheidet still für sich"]));
+
+  // Neuroticism
+  if (neuro >= 8) parts.push(pick(["macht sich oft Sorgen über Fehlkäufe", "braucht Sicherheit und Garantien"]));
+  else if (neuro <= 3) parts.push(pick(["entspannt bei Kaufentscheidungen", "lässt sich nicht unter Druck setzen"]));
+
+  // Agreeableness
+  if (agree >= 8) parts.push(pick(["vertraut Empfehlungen von Freunden schnell", "geht Konflikten aus dem Weg"]));
+  else if (agree <= 3) parts.push(pick(["hinterfragt alles kritisch", "lässt sich nicht von Meinungen anderer beeinflussen"]));
+
+  // Kontext-Einflüsse
+  if (age < 25 && income < 1500) {
+    parts.push(pick(["achtet stark aufs Budget", "überlegt zweimal bevor Geld ausgegeben wird"]));
+  } else if (income > 5000) {
+    parts.push(pick(["Preis ist weniger wichtig als Qualität und Zeitersparnis"]));
+  }
+
+  // Subtype-Traits integrieren (falls vorhanden und kurz genug)
+  if (subtypeTraits && subtypeTraits.length < 100) {
+    // Ersten Satz des Subtype-Traits nehmen
+    const firstSentence = subtypeTraits.split(/[.!]/)[0]?.trim();
+    if (firstSentence) parts.push(firstSentence);
+  }
+
+  if (parts.length === 0) return "Ausgeglichene Persönlichkeit mit mittlerer Entscheidungsfreude.";
+  return parts.join(". ") + ".";
+}
+
+function pick(options: string[]): string {
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+/** Samplet individuell aus Primary + Secondary Pool. Primary wird bevorzugt (70/30). */
+function sampleFromPool(primary: string[], secondary: string[], count: number): string[] {
+  const all = [...new Set([...primary, ...secondary])];
+  if (all.length <= count) return [...all].sort(() => Math.random() - 0.5);
+  // Gewichtete Auswahl: Primary-Items haben höhere Wahrscheinlichkeit
+  const selected: string[] = [];
+  const pool = [...all];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    // 70% Chance auf Primary, 30% auf Secondary
+    const preferPrimary = Math.random() < 0.7;
+    const candidates = preferPrimary ? pool.filter(p => primary.includes(p)) : pool.filter(p => !primary.includes(p));
+    const source = candidates.length > 0 ? candidates : pool;
+    const idx = Math.floor(Math.random() * source.length);
+    selected.push(source[idx]);
+    pool.splice(pool.indexOf(source[idx]), 1);
+  }
+  return selected;
+}
+
+/** Mischt Subtype-spezifische Items mit globalem Pool. Subtype-Items werden priorisiert. */
+function mixWithSubtype(globalPool: string[], subtypePool?: string[]): string[] {
+  const totalCount = 2 + Math.floor(Math.random() * 2); // 2-3 Items
+  if (!subtypePool || subtypePool.length === 0) {
+    const shuffled = [...globalPool].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, totalCount);
+  }
+  // 1-2 aus Subtype, Rest aus globalem Pool (ohne Duplikate)
+  const fromSubtype = [...subtypePool].sort(() => Math.random() - 0.5).slice(0, Math.min(2, totalCount));
+  const subtypeSet = new Set(fromSubtype);
+  const fromGlobal = globalPool.filter(p => !subtypeSet.has(p)).sort(() => Math.random() - 0.5);
+  const remaining = totalCount - fromSubtype.length;
+  return [...fromSubtype, ...fromGlobal.slice(0, Math.max(0, remaining))];
+}
+
 // --- Persona-Generierung aus Preset ---
 
 export interface RichPersona {
@@ -230,20 +325,10 @@ export function generatePersonasFromPreset(preset: PresetData, count: number): R
 
     const bigFive = sampleBigFive(preset.psychographics.big_five);
 
-    // Zufällige Auswahl von Pain Points und Values (nicht alle)
-    const shuffledPains = [...preset.psychographics.pain_points].sort(() => Math.random() - 0.5);
-    const shuffledValues = [...preset.psychographics.values].sort(() => Math.random() - 0.5);
-    const shuffledTriggers = [...preset.psychographics.buying_triggers].sort(() => Math.random() - 0.5);
-    const shuffledBlockers = [...preset.psychographics.buying_blockers].sort(() => Math.random() - 0.5);
-
-    const painCount = 2 + Math.floor(Math.random() * 2); // 2-3
-    const valueCount = 2 + Math.floor(Math.random() * 2);
-    const triggerCount = 2 + Math.floor(Math.random() * 2);
-    const blockerCount = 2 + Math.floor(Math.random() * 2);
-
-    // Subtype bestimmen
+    // Subtype bestimmen (vor Pain Points, da Subtype die Auswahl beeinflusst)
     let subtype: string | undefined;
     let subtypeTraits: string | undefined;
+    let subtypeData: { pain_points?: string[]; buying_triggers?: string[]; buying_blockers?: string[] } | undefined;
     const subtypes = preset.psychographics.buyer_subtypes ?? preset.psychographics.engagement_subtypes;
     if (subtypes) {
       const subtypeWeights: Record<string, number> = {};
@@ -252,22 +337,19 @@ export function generatePersonasFromPreset(preset: PresetData, count: number): R
       }
       subtype = weightedPick(subtypeWeights);
       subtypeTraits = subtypes[subtype]?.traits;
+      subtypeData = subtypes[subtype];
     }
 
-    // Persönlichkeitsbeschreibung aus Big Five ableiten
-    const traits: string[] = [];
-    if (bigFive.openness >= 7) traits.push("offen für Neues");
-    else if (bigFive.openness <= 3) traits.push("traditionsbewusst");
-    if (bigFive.conscientiousness >= 7) traits.push("gewissenhaft und strukturiert");
-    else if (bigFive.conscientiousness <= 3) traits.push("spontan und flexibel");
-    if (bigFive.extraversion >= 7) traits.push("kontaktfreudig");
-    else if (bigFive.extraversion <= 3) traits.push("introvertiert");
-    if (bigFive.neuroticism >= 7) traits.push("stressanfällig");
-    else if (bigFive.neuroticism <= 3) traits.push("gelassen");
-    if (bigFive.agreeableness >= 7) traits.push("kooperativ");
-    else if (bigFive.agreeableness <= 3) traits.push("durchsetzungsstark");
+    // Subtype-korrelierte Auswahl: Subtype-spezifische Items priorisieren, globale ergänzen
+    const valueCount = 2 + Math.floor(Math.random() * 2);
+    const shuffledValues = [...preset.psychographics.values].sort(() => Math.random() - 0.5);
 
-    const personality = traits.length > 0 ? traits.join(", ") + "." : "Ausgeglichene Persönlichkeit.";
+    const selectedPains = mixWithSubtype(preset.psychographics.pain_points, subtypeData?.pain_points);
+    const selectedTriggers = mixWithSubtype(preset.psychographics.buying_triggers, subtypeData?.buying_triggers);
+    const selectedBlockers = mixWithSubtype(preset.psychographics.buying_blockers, subtypeData?.buying_blockers);
+
+    // Persönlichkeitsbeschreibung aus Big Five + Kontext ableiten
+    const personality = buildPersonalityText(bigFive, age, income, subtype, subtypeTraits);
 
     personas.push({
       name,
@@ -281,16 +363,16 @@ export function generatePersonasFromPreset(preset: PresetData, count: number): R
       personality,
       big_five: bigFive,
       values: shuffledValues.slice(0, valueCount),
-      pain_points: shuffledPains.slice(0, painCount),
-      buying_triggers: shuffledTriggers.slice(0, triggerCount),
-      buying_blockers: shuffledBlockers.slice(0, blockerCount),
-      media_primary: preset.media_behavior.primary_platforms,
-      trust_sources: preset.media_behavior.trust_sources,
+      pain_points: selectedPains,
+      buying_triggers: selectedTriggers,
+      buying_blockers: selectedBlockers,
+      media_primary: sampleFromPool(preset.media_behavior.primary_platforms, preset.media_behavior.secondary_platforms, 2 + Math.floor(Math.random() * 2)),
+      trust_sources: sampleFromPool(preset.media_behavior.trust_sources, [], 2 + Math.floor(Math.random() * 2)),
       subtype,
       subtype_traits: subtypeTraits,
       // Legacy-Kompatibilität
-      buy_triggers: shuffledTriggers.slice(0, triggerCount),
-      objections: shuffledBlockers.slice(0, blockerCount),
+      buy_triggers: selectedTriggers,
+      objections: selectedBlockers,
       media_consumption: preset.media_behavior.content_consumption,
     });
   }
@@ -382,9 +464,9 @@ export const PRESETS: Record<string, PresetData> = {
       buying_triggers: ["Rabatt / zeitlich begrenztes Angebot", "Viele positive Bewertungen", "Kostenloser Versand", "Einfache Retoure", "Empfehlung von Freunden / Influencern"],
       buying_blockers: ["Keine Bewertungen vorhanden", "Unbekannter Shop ohne Gütesiegel", "Komplizierter Checkout", "Hohe Versandkosten", "Zu aggressiver Sales-Druck"],
       buyer_subtypes: {
-        "impulskäufer": { weight: 0.35, traits: "Kauft schnell bei emotionalem Trigger. Reagiert auf Scarcity und Social Proof. Bereut gelegentlich.", decision_time: "Minuten" },
-        "recherche_käufer": { weight: 0.40, traits: "Vergleicht 3-5 Anbieter. Liest Bewertungen. Braucht Fakten und Specs. Kauft beim besten Preis-Leistungs-Verhältnis.", decision_time: "Tage" },
-        "gewohnheitskäufer": { weight: 0.25, traits: "Kauft bei bekannten Shops (Amazon, Otto). Wechselt selten. Braucht starken Grund um Neues zu probieren.", decision_time: "Sofort bei bekanntem Shop, sonst gar nicht" },
+        "impulskäufer": { weight: 0.35, traits: "Kauft schnell bei emotionalem Trigger. Reagiert auf Scarcity und Social Proof. Bereut gelegentlich.", decision_time: "Minuten", pain_points: ["FOMO bei limitierten Angeboten", "Reue nach Spontankäufen", "Zu viele Verlockungen im Feed"], buying_triggers: ["Zeitlich begrenztes Angebot", "Nur noch wenige verfügbar", "Influencer zeigt Produkt"], buying_blockers: ["Zu langer Checkout-Prozess", "Keine sofortige Lieferung", "Kein visueller Wow-Effekt"] },
+        "recherche_käufer": { weight: 0.40, traits: "Vergleicht 3-5 Anbieter. Liest Bewertungen. Braucht Fakten und Specs. Kauft beim besten Preis-Leistungs-Verhältnis.", decision_time: "Tage", pain_points: ["Widersprüchliche Bewertungen verwirren", "Technische Details fehlen oft", "Preisvergleich über Shops hinweg mühsam"], buying_triggers: ["Detaillierter Testbericht verfügbar", "Bestes Preis-Leistungs-Verhältnis im Vergleich", "Transparente Spezifikationen"], buying_blockers: ["Keine unabhängigen Tests vorhanden", "Fehlende technische Details", "Nicht beim günstigsten Anbieter"] },
+        "gewohnheitskäufer": { weight: 0.25, traits: "Kauft bei bekannten Shops (Amazon, Otto). Wechselt selten. Braucht starken Grund um Neues zu probieren.", decision_time: "Sofort bei bekanntem Shop, sonst gar nicht", pain_points: ["Lieblingsprodukt wird eingestellt", "Gewohnter Shop ändert Oberfläche", "Neue Anbieter wirken unseriös"], buying_triggers: ["Verfügbar beim gewohnten Shop", "Prime/Express-Versand möglich", "Marke ist bereits bekannt"], buying_blockers: ["Unbekannter Shop ohne Trusted Shops", "Abweichung vom gewohnten Kaufprozess", "Kein Rückgaberecht erkennbar"] },
       },
     },
     media_behavior: {
@@ -500,9 +582,9 @@ export const PRESETS: Record<string, PresetData> = {
       buying_triggers: ["Authentischer Content (nicht poliert)", "Empfehlung von Creator / Peer", "Brand steht für Werte die man teilt", "Viraler Moment / FOMO", "Transparente Preise, keine Tricks"],
       buying_blockers: ["Offensichtliche Werbung / Cringe-Marketing", "Brand mit Greenwashing-Verdacht", "Boomer-Ästhetik in der Kommunikation", "Zu teuer für das verfügbare Budget", "Keine Präsenz auf den eigenen Plattformen"],
       engagement_subtypes: {
-        creator: { weight: 0.15, traits: "Produziert eigenen Content. TikTok, Instagram Reels, YouTube Shorts. Trendsetter im Netzwerk.", influence_radius: "hoch" },
-        active_consumer: { weight: 0.40, traits: "Liked, kommentiert, teilt. Folgt Trends. Nimmt an Diskussionen teil. Beeinflusst direkte Peers.", influence_radius: "mittel" },
-        lurker: { weight: 0.45, traits: "Konsumiert passiv. Scrollt viel, interagiert wenig. Wird durch Masse beeinflusst, nicht durch einzelne Posts.", influence_radius: "niedrig" },
+        creator: { weight: 0.15, traits: "Produziert eigenen Content. TikTok, Instagram Reels, YouTube Shorts. Trendsetter im Netzwerk.", influence_radius: "hoch", pain_points: ["Algorithmus-Änderungen ruinieren Reichweite", "Monetarisierung als Creator schwierig", "Burnout durch Content-Druck"], buying_triggers: ["Produkt eignet sich für Content", "Exklusiver Creator-Zugang", "Brand passt zur eigenen Marke"], buying_blockers: ["Brand ist uncool oder zu corporate", "Kein UGC-Potenzial", "Produkt lässt sich nicht authentisch zeigen"] },
+        active_consumer: { weight: 0.40, traits: "Liked, kommentiert, teilt. Folgt Trends. Nimmt an Diskussionen teil. Beeinflusst direkte Peers.", influence_radius: "mittel", pain_points: ["FOMO wenn Freunde etwas haben", "Schwer zwischen echtem und bezahltem Content zu unterscheiden", "Budget reicht nicht für alle Trends"], buying_triggers: ["Freunde haben es schon", "Trend auf TikTok gesehen", "Rabattcode von Lieblings-Creator"], buying_blockers: ["Niemand im Freundeskreis kennt die Marke", "Wirkt wie Boomer-Marketing", "Zu teuer ohne Studentenrabatt"] },
+        lurker: { weight: 0.45, traits: "Konsumiert passiv. Scrollt viel, interagiert wenig. Wird durch Masse beeinflusst, nicht durch einzelne Posts.", influence_radius: "niedrig", pain_points: ["Entscheidungsparalyse durch zu viele Optionen", "Fühlt sich von aggressivem Marketing genervt", "Kauft selten impulsiv, bereut aber Nichtkäufe"], buying_triggers: ["Massenhaft positive Kommentare unter dem Post", "Produkt löst ein konkretes Alltagsproblem", "Ruhige, informative Darstellung statt Hype"], buying_blockers: ["Zu viel Druck im Marketing", "Nur ein einzelner Influencer bewirbt es", "Keine echten Nutzererfahrungen sichtbar"] },
       },
     },
     media_behavior: {

@@ -28,7 +28,7 @@ export function generateReport(
   const roundProgression = buildRoundProgression(agents, reactions, variants);
 
   // 6. Key Insights
-  const keyInsights = deriveKeyInsights(variantReports, personaInsights, confidence);
+  const keyInsights = deriveKeyInsights(variantReports, personaInsights, confidence, reactions);
 
   return {
     variants: variantReports,
@@ -191,21 +191,22 @@ function deriveKeyInsights(
   variantReports: VariantReport[],
   personaInsights: PersonaInsight[],
   confidence: string,
+  reactions?: Reaction[],
 ): string[] {
   const insights: string[] = [];
   const sorted = [...variantReports].sort((a, b) => b.engagement_rate - a.engagement_rate);
   const best = sorted[0];
   const totalEngagement = variantReports.reduce((sum, v) => sum + v.engagement_rate, 0) / variantReports.length;
 
-  // Niedrig-Engagement Fall: andere Insights als "stärkste Variante"
+  // Niedrig-Engagement Fall: dynamische Gründe aus echten Einwänden extrahieren
   if (totalEngagement < 0.1) {
     insights.push(
       `Kritisches Ergebnis: Durchschnittlich nur ${Math.round(totalEngagement * 100)}% Engagement. Die Zielgruppe reagiert kaum auf den Content.`
     );
-    // Häufigste Kritikpunkte aus Feedback extrahieren
-    const allFeedback = variantReports.flatMap(v => v.agent_feedback ?? []);
-    if (allFeedback.length > 0) {
-      insights.push("Die häufigsten Ablehnungsgründe: fehlende Social Proof, zu generische Versprechen, unklarer konkreter Nutzen.");
+    // Echte Ablehnungsgründe aus Reaktionsdaten extrahieren
+    const topObjections = extractTopObjections(reactions ?? [], variantReports);
+    if (topObjections.length > 0) {
+      insights.push(`Die häufigsten Ablehnungsgründe: ${topObjections.join("; ")}.`);
     }
   } else if (variantReports.length > 1) {
     insights.push(
@@ -215,6 +216,17 @@ function deriveKeyInsights(
     insights.push(
       `${Math.round(best.engagement_rate * 100)}% Engagement bei der Zielgruppe. Interesse: ${best.avg_interest.toFixed(1)}/10, Glaubwürdigkeit: ${best.avg_credibility.toFixed(1)}/10.`
     );
+  }
+
+  // Kaufbereitschaft (aus Reaktionsdaten, wenn vorhanden)
+  if (reactions && reactions.length > 0) {
+    const buyCount = reactions.filter(r => r.wouldBuy).length;
+    const buyRate = buyCount / reactions.length;
+    if (buyRate > 0) {
+      insights.push(
+        `Kaufbereitschaft: ${Math.round(buyRate * 100)}% der Zielgruppe würden kaufen (${buyCount} von ${reactions.length}).`
+      );
+    }
   }
 
   // Credibility-Abweichung (nur bei mehreren Varianten)
@@ -227,10 +239,14 @@ function deriveKeyInsights(
     }
   }
 
-  // Glaubwürdigkeits-Problem
+  // Glaubwürdigkeits-Problem — dynamisch statt generisch
   if (best.avg_credibility < 4) {
+    const credObjections = extractTopObjections(reactions ?? [], variantReports);
+    const credDetail = credObjections.length > 0
+      ? ` Häufigste Einwände: ${credObjections.slice(0, 2).join("; ")}.`
+      : "";
     insights.push(
-      `Glaubwürdigkeitsproblem: Die Zielgruppe stuft das Angebot nur mit ${best.avg_credibility.toFixed(1)}/10 ein. Fehlende Referenzen, Case Studies oder Social Proof könnten der Grund sein.`
+      `Glaubwürdigkeitsproblem: Die Zielgruppe stuft das Angebot nur mit ${best.avg_credibility.toFixed(1)}/10 ein.${credDetail}`
     );
   }
 
@@ -254,6 +270,48 @@ function deriveKeyInsights(
   }
 
   return insights;
+}
+
+/** Extrahiert die häufigsten Einwände aus den Reaktionsdaten */
+function extractTopObjections(reactions: Reaction[], variantReports: VariantReport[]): string[] {
+  // 1. Aus biggestObjection (direkt aus Agenten-Antwort)
+  const objections = reactions
+    .map(r => r.biggestObjection)
+    .filter((o): o is string => o !== null && o.length > 3);
+
+  // 2. Fallback auf internalReasoning aus agent_feedback (bei Ignores)
+  if (objections.length === 0) {
+    const ignoreFeedback = variantReports
+      .flatMap(v => v.agent_feedback ?? [])
+      .filter(f => f.action === "ignore" && f.reasoning)
+      .map(f => f.reasoning.slice(0, 80));
+    return ignoreFeedback.slice(0, 3);
+  }
+
+  // Einfaches Frequency-Clustering: Einwände nach Ähnlichkeit gruppieren
+  const clusters: Array<{ representative: string; count: number }> = [];
+  for (const obj of objections) {
+    const normalized = obj.toLowerCase().replace(/[.!?,]/g, "").trim();
+    const existing = clusters.find(c => {
+      const cNorm = c.representative.toLowerCase().replace(/[.!?,]/g, "").trim();
+      // Einfacher Overlap-Check: mindestens 3 gemeinsame Wörter
+      const words1 = new Set(normalized.split(/\s+/));
+      const words2 = new Set(cNorm.split(/\s+/));
+      let overlap = 0;
+      for (const w of words1) { if (words2.has(w) && w.length > 3) overlap++; }
+      return overlap >= 2;
+    });
+    if (existing) {
+      existing.count++;
+    } else {
+      clusters.push({ representative: obj, count: 1 });
+    }
+  }
+
+  return clusters
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+    .map(c => c.representative);
 }
 
 // --- Helpers ---

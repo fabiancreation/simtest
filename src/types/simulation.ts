@@ -1,6 +1,6 @@
 // --- Simulation Types ---
 
-export type SimType = "copy" | "product" | "pricing" | "ad" | "landing" | "campaign" | "crisis";
+export type SimType = "copy" | "product" | "pricing" | "ad" | "landing" | "campaign" | "crisis" | "strategy";
 export type SimDepth = "fast" | "balanced" | "deep";
 export type SimStatus = "draft" | "queued" | "running" | "completed" | "failed";
 
@@ -61,7 +61,7 @@ export const SIM_TYPES: Record<SimType, SimTypeConfig> = {
   ad: {
     id: "ad",
     label: "Ad Creative",
-    desc: "Bilder & Anzeigen testen",
+    desc: "Anzeigentexte testen (Text-only)",
     color: "#EC4899",
     icon: "M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z",
     needs: ["ad_variants", "ad_meta", "context"],
@@ -84,7 +84,7 @@ export const SIM_TYPES: Record<SimType, SimTypeConfig> = {
     desc: "Gesamte Kampagne testen",
     color: "#8B5CF6",
     icon: "M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6",
-    needs: ["campaign_brief", "campaign_assets", "context"],
+    needs: ["campaign_brief", "campaign_goal", "context"],
     contextHint: "Budget-Rahmen, Zeitraum, bisherige Erfahrungen...",
   },
   crisis: {
@@ -95,6 +95,15 @@ export const SIM_TYPES: Record<SimType, SimTypeConfig> = {
     icon: "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z",
     needs: ["crisis_message", "crisis_meta", "context"],
     contextHint: "Vorgeschichte, aktuelle Stimmung in der Community...",
+  },
+  strategy: {
+    id: "strategy",
+    label: "Business-Strategie",
+    desc: "Marktpotenzial & Positionierung",
+    color: "#14B8A6",
+    icon: "M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m1.5-9h10M9 6.75h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15",
+    needs: ["strategy_idea", "strategy_market", "context"],
+    contextHint: "Branche, Region, Budget, Erfahrung im Markt...",
   },
 };
 

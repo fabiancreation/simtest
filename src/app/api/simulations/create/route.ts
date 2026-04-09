@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   // Auto-Name generieren
   const typeLabels: Record<string, string> = {
     copy: "Copy Test", product: "Produkt-Check", pricing: "Pricing Test",
-    ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check", crisis: "Krisentest",
+    ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check", crisis: "Krisentest", strategy: "Business-Strategie",
   };
   const presetLabels: Record<string, string> = {
     dach_allgemein: "DACH", solo_unternehmer: "Solo-Unternehmer", ecom_kaeufer: "E-Com",
@@ -62,6 +62,8 @@ export async function POST(request: Request) {
     snippet = ((inputData.campaign_brief as string) ?? "").slice(0, 50);
   } else if (simType === "crisis") {
     snippet = ((inputData.crisis_message as string) ?? "").slice(0, 50);
+  } else if (simType === "strategy") {
+    snippet = ((inputData.strategy_idea as string) ?? "").split("\n")[0]?.slice(0, 50) ?? "";
   }
 
   // Zielgruppen-Teil

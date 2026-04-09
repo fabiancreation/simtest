@@ -67,10 +67,15 @@ export default function NewSimulationPage() {
   const [landingGoal, setLandingGoal] = useState("");
   const [desiredAction, setDesiredAction] = useState("");
   const [campaignBrief, setCampaignBrief] = useState("");
+  const [campaignGoal, setCampaignGoal] = useState("");
   const [campaignChannels, setCampaignChannels] = useState<string[]>([]);
   const [crisisMessage, setCrisisMessage] = useState("");
   const [crisisType, setCrisisType] = useState("");
   const [crisisChannel, setCrisisChannel] = useState("");
+  const [strategyIdea, setStrategyIdea] = useState("");
+  const [strategyMarket, setStrategyMarket] = useState("");
+  const [strategyCompetitors, setStrategyCompetitors] = useState("");
+  const [strategyPricing, setStrategyPricing] = useState("");
   const [counterEnabled, setCounterEnabled] = useState(false);
   const [counterMessage, setCounterMessage] = useState("");
 
@@ -164,6 +169,7 @@ export default function NewSimulationPage() {
       if (!campaignBrief.trim()) { setError("Kampagnen-Briefing ist Pflicht."); return; }
       inputData.campaign_brief = campaignBrief;
       inputData.campaign_channels = campaignChannels;
+      if (campaignGoal.trim()) inputData.campaign_goal = campaignGoal;
     }
     if (config.needs.includes("crisis_message")) {
       if (!crisisMessage.trim()) { setError("Kritische Nachricht ist Pflicht."); return; }
@@ -173,6 +179,15 @@ export default function NewSimulationPage() {
       inputData.crisis_type = crisisType;
       inputData.crisis_channel = crisisChannel;
       if (counterEnabled) inputData.counter_message = counterMessage;
+    }
+    if (config.needs.includes("strategy_idea")) {
+      if (!strategyIdea.trim()) { setError("Geschäftsidee ist Pflicht."); return; }
+      inputData.strategy_idea = strategyIdea;
+    }
+    if (config.needs.includes("strategy_market")) {
+      if (strategyMarket.trim()) inputData.strategy_market = strategyMarket;
+      if (strategyCompetitors.trim()) inputData.strategy_competitors = strategyCompetitors;
+      if (strategyPricing.trim()) inputData.strategy_pricing = strategyPricing;
     }
 
     if (focusQuestion.trim()) inputData.focus_question = focusQuestion;
@@ -449,7 +464,7 @@ export default function NewSimulationPage() {
 
       {/* Ad Variants */}
       {config.needs.includes("ad_variants") && (
-        <Section number={nextNum()} label="Ad Creatives" hint="Erstelle Varianten mit Text, Headline und CTA">
+        <Section number={nextNum()} label="Ad Creatives" hint="Teste Anzeigentexte gegeneinander. Bild-Upload kommt bald - aktuell werden nur Texte verglichen.">
           {adVariants.map((av, i) => (
             <div key={i} className="card p-4 mb-3">
               <div className="text-xs font-bold mb-3" style={{ fontFamily: "var(--font-mono)", color: config.color, letterSpacing: "0.05em" }}>
@@ -558,10 +573,16 @@ export default function NewSimulationPage() {
 
       {/* Campaign Brief */}
       {config.needs.includes("campaign_brief") && (
-        <Section number={nextNum()} label="Kampagnen-Briefing" hint="Beschreibe die Kampagne: Ziel, Kanäle, Botschaft, Zeitraum">
+        <Section number={nextNum()} label="Kampagnen-Briefing" hint="Beschreibe die Kampagne: Botschaft, Angebot, Zeitraum">
           <AutoTextarea value={campaignBrief} onChange={setCampaignBrief}
-            placeholder="z.B. 'Launch-Kampagne für neuen Online-Kurs. 3 E-Mails + Meta Ads + Organisch auf LinkedIn. Ziel: 200 Anmeldungen in 14 Tagen.'"
+            placeholder="z.B. 'Launch-Kampagne für neuen Online-Kurs. 3 E-Mails + Meta Ads + Organisch auf LinkedIn. Kernbotschaft: In 8 Wochen zum zertifizierten Coach.'"
             rows={5} />
+          <div className="mt-4">
+            <p className="text-xs font-bold text-text-dim mb-2" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}>KAMPAGNENZIEL</p>
+            <input value={campaignGoal} onChange={(e) => setCampaignGoal(e.target.value)}
+              placeholder="z.B. '200 Anmeldungen in 14 Tagen' oder '500 Leads generieren'"
+              className="input mb-4" />
+          </div>
           <div className="mt-4">
             <p className="text-xs font-bold text-text-dim mb-2" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}>KANÄLE</p>
             <div className="flex flex-wrap gap-2">
@@ -625,6 +646,30 @@ export default function NewSimulationPage() {
             <AutoTextarea value={counterMessage} onChange={setCounterMessage}
               placeholder="Wie willst du reagieren? z.B. 'Wir bieten Bestandskunden 6 Monate Preisgarantie'" rows={3} />
           )}
+        </Section>
+      )}
+
+      {/* Strategy */}
+      {config.needs.includes("strategy_idea") && (
+        <Section number={nextNum()} label="Geschäftsidee" hint="Beschreibe die Idee, das Produkt oder die Strategie, die du validieren willst">
+          <AutoTextarea value={strategyIdea} onChange={setStrategyIdea}
+            placeholder="z.B. 'SaaS-Tool das KMUs erlaubt, Marketingtexte vor der Veröffentlichung an KI-Personas zu testen. Monatliches Abo ab 12 EUR.'"
+            rows={5} />
+        </Section>
+      )}
+      {config.needs.includes("strategy_market") && (
+        <Section number={nextNum()} label="Markt & Wettbewerb" hint="Beschreibe den Zielmarkt und bekannte Alternativen">
+          <div className="space-y-3">
+            <input value={strategyMarket} onChange={(e) => setStrategyMarket(e.target.value)}
+              placeholder="Zielmarkt, z.B. 'KMUs im DACH-Raum mit Marketing-Budget unter 5000 EUR/Monat'"
+              className="input" />
+            <input value={strategyCompetitors} onChange={(e) => setStrategyCompetitors(e.target.value)}
+              placeholder="Wettbewerber / Alternativen, z.B. 'Typeform Umfragen, echte Fokusgruppen, gar nichts'"
+              className="input" />
+            <input value={strategyPricing} onChange={(e) => setStrategyPricing(e.target.value)}
+              placeholder="Geplante Preisgestaltung, z.B. '12/34/89 EUR monatlich, 3 Stufen'"
+              className="input" />
+          </div>
         </Section>
       )}
 

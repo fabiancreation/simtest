@@ -902,7 +902,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* PERSONA CROWD — Canvas-Animation: Grid → Netzwerk */}
+      {/* PERSONA NETWORK — lebendige Force-Directed-Animation */}
       <PersonaCrowdSection C={C} mobile={mobile} />
 
       {/* HONESTY */}

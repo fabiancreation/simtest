@@ -272,8 +272,8 @@ function getSimTypeFraming(simType: string, userContext?: string): { scenario: s
       };
     case "strategy":
       return {
-        scenario: "Du stößt auf folgendes Angebot. Du bist ein potenzieller Kunde -- reagiere NUR aus deiner Perspektive als Käufer. Würdest du dieses Produkt/Angebot kaufen? Würdest du das Freebie herunterladen? Spricht dich die Werbung an? Bewerte NICHT die Geschäftsstrategie, sondern nur ob DU als Kunde zugreifen würdest",
-        scenarioRepeat: "Du siehst das Angebot erneut und überlegst nochmal",
+        scenario: "Du scrollst durch deinen Feed und siehst eine Werbung/ein Angebot. Du bist ein ganz normaler Mensch, kein Marketing-Experte. Du weißt NICHTS über die Geschäftsstrategie dahinter -- du siehst nur das Angebot so wie ein Kunde es sehen würde. Bewerte NICHT ob der Funnel, das Marketing oder die Verkaufsstrategie gut ist. Reagiere einfach ehrlich: Spricht dich das an? Würdest du klicken? Würdest du das Freebie downloaden? Würdest du kaufen?",
+        scenarioRepeat: "Du siehst das Angebot erneut",
         actionContext: "auf dieses Angebot",
       };
     default:
@@ -541,15 +541,10 @@ function extractRawVariants(simType: string, inputData: Record<string, unknown>)
       return [msg];
     }
     case "strategy": {
+      // Agenten sehen NUR die kundengerichtete Beschreibung des Angebots.
+      // Strategie-Details (Zielmarkt, Wettbewerber, Funnel-Mechanik) gehen nur an die Synthese.
       const idea = inputData.strategy_idea as string ?? "";
-      const market = inputData.strategy_market as string ?? "";
-      const competitors = inputData.strategy_competitors as string;
-      const pricing = inputData.strategy_pricing as string;
-      const parts = [idea];
-      if (market) parts.push(`Zielmarkt: ${market}`);
-      if (competitors) parts.push(`Wettbewerber: ${competitors}`);
-      if (pricing) parts.push(`Geplante Preisgestaltung: ${pricing}`);
-      return [parts.join("\n\n")];
+      return [idea];
     }
     default: return [];
   }
@@ -682,6 +677,12 @@ Einwände: ${vObjections.join(" | ") || "keine"}`;
     const focus = inputData.focus_question as string;
     if (ctx) inputContext += `\nKONTEXT VOM NUTZER: ${ctx}`;
     if (focus) inputContext += `\nFOKUS-FRAGE: ${focus}`;
+    // Strategy: volle Strategie-Details nur für die Synthese (Agenten sehen das nicht)
+    if (simType === "strategy") {
+      if (inputData.strategy_market) inputContext += `\nZIELMARKT: ${inputData.strategy_market}`;
+      if (inputData.strategy_competitors) inputContext += `\nWETTBEWERBER: ${inputData.strategy_competitors}`;
+      if (inputData.strategy_pricing) inputContext += `\nPREISGESTALTUNG: ${inputData.strategy_pricing}`;
+    }
   }
 
   // Strategy-spezifischer Synthese-Prompt: Konsumentenreaktionen → strategische Schlüsse

@@ -6,281 +6,175 @@ const NACHNAMEN = ["Müller","Schmidt","Fischer","Weber","Wagner","Becker","Schu
 const BERUFE = ["Coach","Designerin","Entwickler","Lehrerin","Berater","Ärztin","Ingenieur","Gründerin","Freelancer","Managerin","Student","Pflegerin","Handwerker","Journalistin","Architektin","Texter","Trainerin","Analyst"];
 const STAEDTE = ["Berlin","Hamburg","München","Köln","Frankfurt","Stuttgart","Düsseldorf","Leipzig","Dresden","Hannover","Nürnberg","Bremen","Freiburg","Heidelberg","Kiel"];
 
-function seededRandom(seed) {
-  let s = seed;
-  return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
-}
-
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
 export default function PersonaCrowdSection({ C, mobile }) {
   const canvasRef = useRef(null);
   const sectionRef = useRef(null);
-  const [hoveredNode, setHoveredNode] = useState(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const nodesRef = useRef([]);
-  const connectionsRef = useRef([]);
-  const animRef = useRef(null);
+  const agentsRef = useRef([]);
+  const frameRef = useRef(null);
   const isVisibleRef = useRef(false);
+  const [hoveredAgent, setHoveredAgent] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const TOTAL = mobile ? 100 : 200;
-  const COLORS = [C.accent, C.purple, C.blue, C.accentDim, "#f59e0b", "#ec4899", "#14b8a6", "#8b5cf6"];
+  const colors = [C.accent, C.purple, C.blue, "#f472b6", C.warning, "#14b8a6", "#8b5cf6", C.accentDim];
 
-  // Generate stable persona data once
+  // Generate persona data once
   const personasRef = useRef(null);
   if (!personasRef.current) {
-    const rng = seededRandom(42);
     personasRef.current = Array.from({ length: TOTAL }, (_, i) => {
-      const vorname = VORNAMEN[Math.floor(rng() * VORNAMEN.length)];
-      const nachname = NACHNAMEN[Math.floor(rng() * NACHNAMEN.length)];
-      const beruf = BERUFE[Math.floor(rng() * BERUFE.length)];
-      const stadt = STAEDTE[Math.floor(rng() * STAEDTE.length)];
-      const age = 22 + Math.floor(rng() * 38);
-      const color = COLORS[i % COLORS.length];
-      return { name: `${vorname} ${nachname}`, beruf, age, stadt, color, initials: vorname[0] + nachname[0] };
+      const vorname = VORNAMEN[i % VORNAMEN.length];
+      const nachname = NACHNAMEN[i % NACHNAMEN.length];
+      return {
+        name: `${vorname} ${nachname}`,
+        beruf: BERUFE[i % BERUFE.length],
+        age: 22 + (i * 7 + 13) % 38,
+        stadt: STAEDTE[i % STAEDTE.length],
+      };
     });
   }
 
-  // Mouse tracking
-  const handleMouseMove = useCallback((e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const mx = (e.clientX - rect.left) * scaleX;
-    const my = (e.clientY - rect.top) * scaleY;
-    setMousePos({ x: mx, y: my });
-
-    let closest = null;
-    let minDist = 40 * (window.devicePixelRatio || 1);
-    const nodes = nodesRef.current;
-    for (let i = 0; i < nodes.length; i++) {
-      const d = Math.hypot(nodes[i].x - mx, nodes[i].y - my);
-      if (d < minDist) { closest = i; minDist = d; }
-    }
-    setHoveredNode(closest);
-  }, []);
-
-  // Canvas setup + physics simulation
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
+    const cW = mobile ? Math.min(window.innerWidth - 40, 500) : 860;
+    const cH = mobile ? 320 : 460;
 
-    function resize() {
-      const rect = canvas.parentElement.getBoundingClientRect();
-      const h = mobile ? 360 : 480;
-      canvas.width = rect.width * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = rect.width + "px";
-      canvas.style.height = h + "px";
-    }
-    resize();
-    window.addEventListener("resize", resize);
+    canvas.width = cW * dpr;
+    canvas.height = cH * dpr;
+    canvas.style.width = cW + "px";
+    canvas.style.height = cH + "px";
+    ctx.scale(dpr, dpr);
 
-    const W = () => canvas.width;
-    const H = () => canvas.height;
+    const pad = 15;
+    // Init agents — same style as hero AgentCanvas but more agents
+    agentsRef.current = Array.from({ length: TOTAL }, (_, i) => ({
+      x: pad + Math.random() * (cW - pad * 2),
+      y: pad + Math.random() * (cH - pad * 2),
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      radius: 2 + Math.random() * 2.5,
+      color: colors[i % colors.length],
+      pulse: Math.random() * Math.PI * 2,
+      influenceRadius: 50 + Math.random() * 30,
+      personaIndex: i,
+    }));
 
-    // Initialize node positions
-    const rng = seededRandom(77);
-    const nodes = [];
-    for (let i = 0; i < TOTAL; i++) {
-      const angle = rng() * Math.PI * 2;
-      const radius = 80 * dpr + rng() * Math.min(W(), H()) * 0.35;
-      nodes.push({
-        x: W() / 2 + Math.cos(angle) * radius * (0.5 + rng() * 0.5),
-        y: H() / 2 + Math.sin(angle) * radius * (0.5 + rng() * 0.5),
-        vx: (rng() - 0.5) * 0.3,
-        vy: (rng() - 0.5) * 0.3,
-        color: personasRef.current[i].color,
-        initials: personasRef.current[i].initials,
-        radius: (mobile ? 10 : 14) * dpr,
-      });
-    }
-    nodesRef.current = nodes;
-
-    // Generate connections (each node connects to 2-3 nearest)
-    const connections = [];
-    for (let i = 0; i < TOTAL; i++) {
-      const dists = [];
-      for (let j = 0; j < TOTAL; j++) {
-        if (i === j) continue;
-        const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
-        dists.push({ j, d });
-      }
-      dists.sort((a, b) => a.d - b.d);
-      const count = 2 + Math.floor(rng() * 2);
-      for (let k = 0; k < count && k < dists.length; k++) {
-        const pair = [Math.min(i, dists[k].j), Math.max(i, dists[k].j)];
-        if (!connections.some(c => c[0] === pair[0] && c[1] === pair[1])) {
-          connections.push(pair);
-        }
-      }
-    }
-    connectionsRef.current = connections;
-
-    // Intersection Observer -- nur animieren wenn sichtbar
+    // Intersection Observer
     const observer = new IntersectionObserver(([entry]) => {
       isVisibleRef.current = entry.isIntersecting;
-    }, { threshold: 0.1 });
+    }, { threshold: 0.05 });
     if (sectionRef.current) observer.observe(sectionRef.current);
 
-    // Physics + Draw loop
-    function tick() {
-      animRef.current = requestAnimationFrame(tick);
-      if (!isVisibleRef.current) return; // Nicht zeichnen wenn nicht sichtbar
+    function draw() {
+      frameRef.current = requestAnimationFrame(draw);
+      if (!isVisibleRef.current) return;
 
-      const w = W();
-      const h = H();
-      const padding = 20 * dpr;
+      ctx.clearRect(0, 0, cW, cH);
+      const agents = agentsRef.current;
 
-      // Sanfte Physik: Nodes driften langsam, stoßen sich leicht ab
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
-
-        // Leichte Zentrumsgravitation
-        const dx = w / 2 - n.x;
-        const dy = h / 2 - n.y;
-        const distCenter = Math.hypot(dx, dy);
-        if (distCenter > w * 0.4) {
-          n.vx += dx * 0.00003;
-          n.vy += dy * 0.00003;
-        }
-
-        // Abstoßung von nahen Nodes
-        for (let j = i + 1; j < nodes.length; j++) {
-          const other = nodes[j];
-          const ddx = n.x - other.x;
-          const ddy = n.y - other.y;
-          const dist = Math.hypot(ddx, ddy);
-          const minDist = 30 * dpr;
-          if (dist < minDist && dist > 0) {
-            const force = (minDist - dist) * 0.002;
-            const fx = (ddx / dist) * force;
-            const fy = (ddy / dist) * force;
-            n.vx += fx;
-            n.vy += fy;
-            other.vx -= fx;
-            other.vy -= fy;
-          }
-        }
-
-        // Leichte Anziehung entlang Verbindungen
-        for (const [a, b] of connections) {
-          if (a !== i && b !== i) continue;
-          const other = nodes[a === i ? b : a];
-          const ddx = other.x - n.x;
-          const ddy = other.y - n.y;
-          const dist = Math.hypot(ddx, ddy);
-          const targetDist = 100 * dpr;
-          if (dist > targetDist) {
-            n.vx += ddx * 0.00005;
-            n.vy += ddy * 0.00005;
-          }
-        }
-
-        // Dämpfung
-        n.vx *= 0.98;
-        n.vy *= 0.98;
-
-        // Position aktualisieren
-        n.x += n.vx;
-        n.y += n.vy;
-
-        // Bounds
-        if (n.x < padding) { n.x = padding; n.vx *= -0.5; }
-        if (n.x > w - padding) { n.x = w - padding; n.vx *= -0.5; }
-        if (n.y < padding) { n.y = padding; n.vy *= -0.5; }
-        if (n.y > h - padding) { n.y = h - padding; n.vy *= -0.5; }
-      }
-
-      // Draw
-      ctx.clearRect(0, 0, w, h);
-
-      // Connections
-      for (const [a, b] of connections) {
-        const na = nodes[a];
-        const nb = nodes[b];
-        const dist = Math.hypot(na.x - nb.x, na.y - nb.y);
-        const maxDist = 180 * dpr;
-        if (dist > maxDist) continue;
-        const alpha = 0.08 * (1 - dist / maxDist);
-        ctx.strokeStyle = hexToRgba(na.color, alpha);
-        ctx.lineWidth = 0.5 * dpr;
-        ctx.beginPath();
-        ctx.moveTo(na.x, na.y);
-        ctx.lineTo(nb.x, nb.y);
-        ctx.stroke();
-      }
-
-      // Nodes
-      const hIdx = hoveredNode;
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
-        const isHovered = i === hIdx;
-        const r = isHovered ? n.radius * 1.6 : n.radius;
-
-        // Glow
-        if (isHovered) {
-          ctx.shadowColor = n.color;
-          ctx.shadowBlur = 16 * dpr;
-        }
-
-        // Background
-        ctx.fillStyle = hexToRgba(n.color, isHovered ? 0.25 : 0.1);
-        ctx.beginPath();
-        ctx.roundRect(n.x - r, n.y - r, r * 2, r * 2, r * 0.3);
-        ctx.fill();
-
-        // Border
-        ctx.strokeStyle = hexToRgba(n.color, isHovered ? 0.5 : 0.2);
-        ctx.lineWidth = (isHovered ? 1.5 : 0.5) * dpr;
-        ctx.stroke();
-
-        // Reset shadow
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
-
-        // Initials
-        ctx.fillStyle = hexToRgba(n.color, isHovered ? 1 : 0.65);
-        ctx.font = `${isHovered ? "bold" : "600"} ${(isHovered ? 11 : mobile ? 7 : 9) * dpr}px 'JetBrains Mono', monospace`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(n.initials, n.x, n.y);
-
-        // Highlight connections for hovered node
-        if (isHovered) {
-          for (const [a, b] of connections) {
-            if (a !== i && b !== i) continue;
-            const other = nodes[a === i ? b : a];
-            ctx.strokeStyle = hexToRgba(n.color, 0.3);
-            ctx.lineWidth = 1.5 * dpr;
+      // Verbindungslinien
+      for (let i = 0; i < agents.length; i++) {
+        for (let j = i + 1; j < agents.length; j++) {
+          const dx = agents[j].x - agents[i].x;
+          const dy = agents[j].y - agents[i].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < agents[i].influenceRadius) {
+            const alpha = (1 - dist / agents[i].influenceRadius) * 0.08;
             ctx.beginPath();
-            ctx.moveTo(n.x, n.y);
-            ctx.lineTo(other.x, other.y);
+            ctx.moveTo(agents[i].x, agents[i].y);
+            ctx.lineTo(agents[j].x, agents[j].y);
+            ctx.strokeStyle = `rgba(110, 231, 183, ${alpha})`;
+            ctx.lineWidth = 0.5;
             ctx.stroke();
           }
         }
       }
+
+      // Agents zeichnen + Physik
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        a.pulse += 0.015;
+        const ps = 1 + Math.sin(a.pulse) * 0.2;
+
+        // Leichte Abstoßung bei Nähe
+        for (let j = i + 1; j < agents.length; j++) {
+          const dx = agents[j].x - a.x;
+          const dy = agents[j].y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 12 && dist > 0.1) {
+            const force = (12 - dist) / 12 * 0.03;
+            const fx = (dx / dist) * force;
+            const fy = (dy / dist) * force;
+            a.vx -= fx; a.vy -= fy;
+            agents[j].vx += fx; agents[j].vy += fy;
+          }
+        }
+
+        // Bewegung
+        a.x += a.vx;
+        a.y += a.vy;
+        if (a.x < pad || a.x > cW - pad) a.vx *= -1;
+        if (a.y < pad || a.y > cH - pad) a.vy *= -1;
+        a.x = Math.max(pad, Math.min(cW - pad, a.x));
+        a.y = Math.max(pad, Math.min(cH - pad, a.y));
+        a.vx *= 0.998;
+        a.vy *= 0.998;
+        a.vx += (Math.random() - 0.5) * 0.02;
+        a.vy += (Math.random() - 0.5) * 0.02;
+
+        // Glow
+        const g = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.radius * 4.5 * ps);
+        g.addColorStop(0, a.color + "35");
+        g.addColorStop(1, a.color + "00");
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.radius * 4.5 * ps, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+
+        // Dot
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.radius * ps, 0, Math.PI * 2);
+        ctx.fillStyle = a.color;
+        ctx.fill();
+      }
+    }
+    draw();
+
+    return () => {
+      cancelAnimationFrame(frameRef.current);
+      observer.disconnect();
+    };
+  }, [mobile, TOTAL]);
+
+  // Hover detection
+  const handleMouseMove = useCallback((e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = parseFloat(canvas.style.width) / rect.width;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleX;
+
+    let closest = null;
+    let minDist = 25;
+    const agents = agentsRef.current;
+    for (let i = 0; i < agents.length; i++) {
+      const d = Math.hypot(agents[i].x - mx, agents[i].y - my);
+      if (d < minDist) { closest = i; minDist = d; }
     }
 
-    tick();
-    return () => {
-      window.removeEventListener("resize", resize);
-      observer.disconnect();
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-    };
-  }, [mobile, TOTAL, COLORS, hoveredNode]);
+    if (closest !== null) {
+      setHoveredAgent(closest);
+      setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    } else {
+      setHoveredAgent(null);
+    }
+  }, []);
 
-  const hovered = hoveredNode !== null ? personasRef.current[hoveredNode] : null;
-  const tooltipNode = hoveredNode !== null ? nodesRef.current[hoveredNode] : null;
+  const persona = hoveredAgent !== null ? personasRef.current[hoveredAgent] : null;
+  const agentColor = hoveredAgent !== null ? agentsRef.current[hoveredAgent]?.color : null;
 
   return (
     <section ref={sectionRef} style={{ padding: mobile ? "0 0 52px" : "0 0 84px" }}>
@@ -296,48 +190,43 @@ export default function PersonaCrowdSection({ C, mobile }) {
           </p>
         </div>
 
-        {/* Canvas */}
-        <div style={{ position: "relative", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
-          {/* Ambient glow */}
-          <div style={{ position: "absolute", top: -60, left: "10%", width: 200, height: 200, background: C.accent + "06", borderRadius: "50%", filter: "blur(60px)", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", bottom: -40, right: "15%", width: 160, height: 160, background: C.purple + "06", borderRadius: "50%", filter: "blur(50px)", pointerEvents: "none" }} />
-
+        {/* Canvas Container */}
+        <div style={{ position: "relative", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", padding: 12 }}>
           <canvas
             ref={canvasRef}
             onMouseMove={handleMouseMove}
-            onMouseLeave={() => setHoveredNode(null)}
-            style={{ display: "block", cursor: hoveredNode !== null ? "pointer" : "default" }}
+            onMouseLeave={() => setHoveredAgent(null)}
+            style={{ display: "block", borderRadius: 12, cursor: hoveredAgent !== null ? "pointer" : "default", width: "100%" }}
           />
 
           {/* Tooltip */}
-          {hovered && tooltipNode && !mobile && (
+          {persona && !mobile && (
             <div style={{
               position: "absolute",
-              left: Math.min(Math.max(tooltipNode.x / (window.devicePixelRatio || 1), 80), 820),
-              top: tooltipNode.y / (window.devicePixelRatio || 1) - 72,
+              left: Math.min(Math.max(tooltipPos.x, 80), (canvasRef.current?.parentElement?.offsetWidth || 900) - 80),
+              top: tooltipPos.y - 60,
               transform: "translateX(-50%)",
               background: C.bgCard,
-              border: `1px solid ${hovered.color}35`,
+              border: `1px solid ${agentColor}35`,
               borderRadius: 12,
               padding: "10px 16px",
               pointerEvents: "none",
               zIndex: 10,
-              boxShadow: `0 8px 32px ${hovered.color}20, 0 2px 8px rgba(0,0,0,0.1)`,
+              boxShadow: `0 8px 32px ${agentColor}20, 0 2px 8px rgba(0,0,0,0.08)`,
               whiteSpace: "nowrap",
-              backdropFilter: "blur(8px)",
             }}>
-              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Outfit',sans-serif", color: hovered.color }}>{hovered.name}</div>
-              <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{hovered.age} J. · {hovered.beruf} · {hovered.stadt}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Outfit',sans-serif", color: agentColor }}>{persona.name}</div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{persona.age} J. · {persona.beruf} · {persona.stadt}</div>
             </div>
           )}
 
           {/* Counter */}
-          <div style={{
-            position: "absolute", bottom: 12, right: 16,
-            fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: C.textDim,
-            background: C.bgCard + "cc", padding: "3px 10px", borderRadius: 6, border: `1px solid ${C.border}`,
-          }}>
-            {TOTAL} Personas · Live-Netzwerk
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 6px 0", fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: C.textDim }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.accent, display: "inline-block", boxShadow: `0 0 6px ${C.accent}` }} />
+              {TOTAL} Personas aktiv
+            </span>
+            <span>Live-Netzwerk</span>
           </div>
         </div>
 

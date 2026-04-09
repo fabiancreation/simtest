@@ -1,6 +1,6 @@
 # SimTest — Projekt-Status
 
-> Stand: 9. April 2026 (Abend)
+> Stand: 9. April 2026 (Nacht)
 > Deployed: Vercel (via GitHub `fabiancreation/simtest`, auto-deploy auf main)
 > Supabase: Shared mit Funnel Architect (Ref: `ajrshllvafqpbdhxhgsh`)
 > Edge Function: `run-simulation` deployed (150s Timeout, 5 Module)
@@ -30,13 +30,13 @@
 - **Dynamisches Copy-Framing** — Erkennt Newsletter/E-Mail/Google Ads/Shop/Blog/Slogan aus Context
 - **Context-Durchreichung** — User-Context fließt in jeden Agenten-Prompt ein
 - **Fokus-Frage** — Wird an Agenten und Synthese weitergegeben
-- **Persona-Pool** — 200er-Pool pro Preset/Beschreibung, Random-Sampling pro Simulation (keine identischen Wiederholungen)
+- **Persona-Pool** — Presets: 200er-Pool lokal generiert. Eigene Personas: 50er-Pool via API. Random-Sampling pro Simulation (keine identischen Wiederholungen)
 - **Name-Deduplication** — Keine doppelten Persona-Namen bei bis zu 400 Agenten
 - **Individuelles Media-Sampling** — Jeder Agent bekommt eigene Medien/Trust-Sources statt identischer Listen
 - **Platform Behavior** — Preset-Wahrscheinlichkeiten fließen als natürlichsprachliche Tendenz in System-Prompt ein
 - **Reichhaltige Personality-Texte** — 30+ Varianten, Big-Five-granular, kontext-abhängig, Subtype-integriert
 - **Antwort-Diversität** — 10 gebannte Eröffnungsphrasen, Kommentar-Stil-Anweisung, Temperature 0.9
-- **Persona-Caching v2** — Pool-basiert (user_id + description_hash), wächst durch Merging
+- **Persona-Caching v2** — Pool-basiert (user_id + description_hash), wächst durch Merging. Eigene Personas nutzen denselben Pool-Mechanismus wie Presets
 - **Retry-Logik** — Exponential Backoff (3 Versuche) für alle Anthropic-Calls
 - **Error Handling** — `error_message` in DB, Frontend zeigt echte Fehler
 - **Robuster JSON-Parser** — Markdown-Codeblock-Stripping, Fallback auf Regex-Extraktion, max_tokens 1000
@@ -49,12 +49,12 @@
 - `types.ts` — Shared Types (Agent, Reaction, Variant, SimulationReport)
 
 ### Frontend
-- **Report-Seite v3** — Dynamische Labels pro SimType, PDF-Export (Print), Report-Sharing, Report umbenennen
+- **Report-Seite v3** — Dynamische Labels pro SimType, PDF-Export (Print), Report-Sharing, Report umbenennen, Report löschen
 - **PDF-Export** — window.print() mit Print-Stylesheet (Sidebar/Buttons ausgeblendet, Farben forciert)
 - **Report-Sharing** — Share-Token (UUID), 30 Tage Ablauf, öffentliche Read-Only-Seite `/share/[token]`
 - **Report umbenennen** — Inline-Edit mit Pencil-Icon im Report-Header
 - **Single-Variante-Report** — "Analyse" statt "Gewinner", Kaufbereitschaft, Action-Aufschlüsselung
-- **Reports-Übersicht** `/reports` — Alle Simulationen, Filter nach Typ, Suche, Auto-Namen
+- **Reports-Übersicht** `/reports` — Alle Simulationen, Filter nach Typ, Suche, Auto-Namen, Löschen (Hover-Trash-Icon)
 - **Auto-Namen** — "Produkt-Check: Path to Mastery... (Solo-Unternehmer)"
 - **Persona bearbeiten** — Edit-Seite `/personas/[id]`, PATCH API, Delete mit Bestätigung, Cache-Invalidierung
 - **Supabase Realtime + Fallback** — Subscription + 5s-Polling als Fallback
@@ -92,8 +92,10 @@
 - ✅ Report mit AI-Synthese (Zusammenfassung, Empfehlungen, Einwand-Cluster)
 - ✅ Reports-Übersicht mit Filter + Suche + Auto-Namen
 - ✅ Report umbenennen (Inline-Edit)
+- ✅ Report löschen (mit Bestätigungsdialog)
 - ✅ PDF-Export (Print)
 - ✅ Report-Sharing (öffentlicher Link)
+- ✅ Persona-Pool: Eigene Personas werden als 50er-Pool gesampelt (nicht immer dieselben)
 - ✅ Realtime Updates + Fallback-Polling
 - ✅ would_buy + biggest_objection in DB persistent
 - ✅ Error Handling (Fehlermeldung sichtbar)
@@ -174,6 +176,7 @@
 | `src/app/api/simulations/[id]/status/route.ts` | API: Status + result_data |
 | `src/app/api/simulations/[id]/share/route.ts` | API: Share-Token generieren/revoken |
 | `src/app/api/simulations/[id]/rename/route.ts` | API: Report umbenennen |
+| `src/app/api/simulations/[id]/route.ts` | API: Simulation DELETE |
 | `src/app/api/personas/[id]/route.ts` | API: Persona GET/PATCH/DELETE |
 | `src/types/simulation.ts` | Frontend Types + SimType Config + Presets |
 | `docs/STYLEGUIDE.md` | Design-Tokens + Komponenten-Regeln |
@@ -181,4 +184,4 @@
 
 ---
 
-*Letzte Aktualisierung: 9. April 2026 (Abend)*
+*Letzte Aktualisierung: 9. April 2026 (Nacht)*

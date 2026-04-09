@@ -1,6 +1,6 @@
 # SimTest — Projekt-Status
 
-> Stand: 9. April 2026
+> Stand: 9. April 2026 (Abend)
 > Deployed: Vercel (via GitHub `fabiancreation/simtest`, auto-deploy auf main)
 > Supabase: Shared mit Funnel Architect (Ref: `ajrshllvafqpbdhxhgsh`)
 > Edge Function: `run-simulation` deployed (150s Timeout, 5 Module)
@@ -15,36 +15,51 @@
 - **Password-Login** — Login-Page erweitert (Passwort + Magic Link + Google OAuth toggle)
 - **Plan-Trennung** — `simtest_plan` Spalte (getrennt von Funnel Architect `plan`)
 - **User-Setup** — `fabian@simtest.com` angelegt, `business` Plan, 9999 Runs
+- **Rate Limiting** — In-Memory, 10 Simulationen/Minute pro User
+- **Monatlicher Runs-Reset** — pg_cron Job, 1. jedes Monats 00:00 UTC
 
-### Simulations-Engine v2
-- **7 Simulationstypen** — Copy, Produkt, Pricing, Ad Creative, Landing Page, Kampagne, Krisentest
+### Simulations-Engine v3
+- **8 Simulationstypen** — Copy, Produkt, Pricing, Ad Creative, Landing Page, Kampagne, Krisentest, **Business-Strategie (NEU)**
 - **Multi-Runden-Loop** — 1-5 Runden, Agenten sehen Nachbar-Reaktionen in Runde 2+
-- **Neues Reaktionsmodell** — like/comment/share/ignore + interest_level + credibility_rating + would_buy + biggest_objection
+- **Neues Reaktionsmodell** — like/comment/share/ignore + interest_level + credibility_rating + would_buy + biggest_objection (jetzt in DB gespeichert)
 - **Network Builder** — 5 Topologien: Small World (Solo), Scale Free (E-Com), Hierarchical Cluster (B2B), Scale Free Dense (Gen Z), Random (DACH)
 - **Rich Presets** — 5 Presets mit Big Five, Subtypes, statistischen Verteilungen, lokale Generierung ohne API-Call
-- **AI-Synthese** — Haiku analysiert alle Reaktionen → Zusammenfassung, Einwand-Cluster, konkrete Empfehlungen, Kaufbereitschaft
-- **Landing Page Crawler** — URLs werden gefetcht, HTML zu Text extrahiert (Title, OG-Tags, Meta, Seiteninhalt max 3000 Zeichen)
-- **SimType-spezifische Prompts** — Produkt-Check: "Du stößt auf ein Angebot", Copy: "Feed-Post", Landing: "Du klickst auf einen Link" etc.
-- **Persona-Caching** — `persona_cache` Tabelle (user_id + description_hash + agent_count), spart API-Kosten
+- **Subtype-korrelierte Pain Points** — Impulskäufer, Recherche-Käufer, Creator etc. haben eigene Pain Points/Triggers/Blockers
+- **AI-Synthese v2** — Bekommt jetzt Context + Fokus-Frage, empfiehlt nichts was der Nutzer bereits hat. Strategy-Synthese trennt Konsumentenreaktionen von strategischen Schlüssen
+- **Landing Page Crawler** — URLs werden gefetcht, HTML zu Text extrahiert
+- **Dynamisches Copy-Framing** — Erkennt Newsletter/E-Mail/Google Ads/Shop/Blog/Slogan aus Context
+- **Context-Durchreichung** — User-Context fließt in jeden Agenten-Prompt ein
+- **Fokus-Frage** — Wird an Agenten und Synthese weitergegeben
+- **Persona-Pool** — 200er-Pool pro Preset/Beschreibung, Random-Sampling pro Simulation (keine identischen Wiederholungen)
+- **Name-Deduplication** — Keine doppelten Persona-Namen bei bis zu 400 Agenten
+- **Individuelles Media-Sampling** — Jeder Agent bekommt eigene Medien/Trust-Sources statt identischer Listen
+- **Platform Behavior** — Preset-Wahrscheinlichkeiten fließen als natürlichsprachliche Tendenz in System-Prompt ein
+- **Reichhaltige Personality-Texte** — 30+ Varianten, Big-Five-granular, kontext-abhängig, Subtype-integriert
+- **Antwort-Diversität** — 10 gebannte Eröffnungsphrasen, Kommentar-Stil-Anweisung, Temperature 0.9
+- **Persona-Caching v2** — Pool-basiert (user_id + description_hash), wächst durch Merging
 - **Retry-Logik** — Exponential Backoff (3 Versuche) für alle Anthropic-Calls
 - **Error Handling** — `error_message` in DB, Frontend zeigt echte Fehler
-- **Robuster JSON-Parser** — Markdown-Codeblock-Stripping, Fallback auf Regex-Extraktion bei kaputtem JSON
+- **Robuster JSON-Parser** — Markdown-Codeblock-Stripping, Fallback auf Regex-Extraktion, max_tokens 1000
 
 ### Supabase Edge Function — 5 Module
 - `index.ts` — Handler, Agenten-Builder, Simulations-Loop, Synthese
-- `presets.ts` — 5 Rich Presets mit statistischem Sampling (Box-Muller, gewichtete Auswahl)
+- `presets.ts` — 5 Rich Presets mit statistischem Sampling + Subtype-Listen + Name-Dedup
 - `network.ts` — 5 Netzwerk-Topologien (Watts-Strogatz, Barabási-Albert, Hierarchical Cluster)
-- `report.ts` — Report-Generator mit Persona-Insights, Runden-Progression, Engagement
+- `report.ts` — Report-Generator mit dynamischen Insights, Einwand-Clustering, Kaufbereitschaft
 - `types.ts` — Shared Types (Agent, Reaction, Variant, SimulationReport)
 
 ### Frontend
-- **Report-Seite v2** — Getesteter Content, Engagement-Vergleich (100% vs. 67%), AI-Synthese mit Empfehlungen, Agent-Kommentare (Chat-Bubble-Style), Agent-Feedback ("Was die Zielgruppe denkt"), Persona-Analyse, Konfidenz-Badge
+- **Report-Seite v3** — Dynamische Labels pro SimType, PDF-Export (Print), Report-Sharing, Report umbenennen
+- **PDF-Export** — window.print() mit Print-Stylesheet (Sidebar/Buttons ausgeblendet, Farben forciert)
+- **Report-Sharing** — Share-Token (UUID), 30 Tage Ablauf, öffentliche Read-Only-Seite `/share/[token]`
+- **Report umbenennen** — Inline-Edit mit Pencil-Icon im Report-Header
 - **Single-Variante-Report** — "Analyse" statt "Gewinner", Kaufbereitschaft, Action-Aufschlüsselung
 - **Reports-Übersicht** `/reports` — Alle Simulationen, Filter nach Typ, Suche, Auto-Namen
 - **Auto-Namen** — "Produkt-Check: Path to Mastery... (Solo-Unternehmer)"
-- **Eigene Persona** — Klick auf "Eigene Persona" öffnet Dropdown mit gespeicherten Personas
-- **Supabase Realtime** — Subscription statt Polling für Status-Updates
+- **Persona bearbeiten** — Edit-Seite `/personas/[id]`, PATCH API, Delete mit Bestätigung, Cache-Invalidierung
+- **Supabase Realtime + Fallback** — Subscription + 5s-Polling als Fallback
 - **URL-Validierung** — Auto-Prefix `https://`, ungültige URLs abfangen
+- **Simulation-Redirect** — Nach Submit direkt zu `/simulation/[id]`
 
 ### UI/UX
 - **Styleguide** — Outfit/Inter/JetBrains Mono, Emerald-Akzent
@@ -52,10 +67,15 @@
 - **Sidebar** — Dashboard, Neue Simulation, Reports, Personas, Einstellungen
 - **Responsive** — Mobile Hamburger-Menü
 
-### Datenbank (10 Migrationen)
+### Datenbank (15 Migrationen)
 - `waitlist` (002), `simtest_plan` (003), `simulations` + `simulation_files` (004)
 - `persona_profiles` v2 (005), `error_message` (006), `persona_cache` (007)
 - Realtime Publication (008), `agents` + `reactions` (009), `name` (010)
+- `would_buy` + `biggest_objection` auf reactions (011)
+- `strategy` SimType im CHECK-Constraint (012)
+- Persona-Pool: Unique-Constraint ohne agent_count (013)
+- Share-Tokens: `share_token`, `share_enabled`, `share_expires_at` (014)
+- Monatlicher Runs-Reset via pg_cron (015)
 
 ---
 
@@ -63,41 +83,46 @@
 
 - ✅ Login mit Passwort (fabian@simtest.com)
 - ✅ Persona erstellen (Preset + AI-Enrichment + Eigene Persona)
+- ✅ Persona bearbeiten + löschen
 - ✅ Copy Testing (5 Agenten, 2 Varianten) — diverse Kommentare, Engagement-Vergleich
+- ✅ Copy Testing mit Newsletter-Context — dynamisches E-Mail-Framing
 - ✅ Produkt-Check (5-50 Agenten) — Kaufbereitschaft, Einwand-Analyse, AI-Synthese
 - ✅ Landing Page Test — URL wird gecrawlt, Agenten reagieren auf echten Seiteninhalt
+- ✅ Business-Strategie — Agenten als Konsumenten, Synthese als Strategie-Analyst
 - ✅ Report mit AI-Synthese (Zusammenfassung, Empfehlungen, Einwand-Cluster)
 - ✅ Reports-Übersicht mit Filter + Suche + Auto-Namen
-- ✅ Supabase Realtime Updates
+- ✅ Report umbenennen (Inline-Edit)
+- ✅ PDF-Export (Print)
+- ✅ Report-Sharing (öffentlicher Link)
+- ✅ Realtime Updates + Fallback-Polling
+- ✅ would_buy + biggest_objection in DB persistent
 - ✅ Error Handling (Fehlermeldung sichtbar)
 - ✅ Light/Dark Mode
+- ✅ Rate Limiting (10/min)
+- ✅ Monatlicher Runs-Reset (pg_cron)
+
+---
+
+## Bekannte Limitierungen
+
+- **Strategy-SimType ist einstufig** — Kann keine Multi-Step-Funnels simulieren. Agenten sehen den Businessplan-Content und reagieren teils als Marketing-Kritiker statt als Konsumenten. Konzept für Multi-Step-Lösung in `docs/STRATEGY-REDESIGN.md`.
+- **Ad Creative nur Text** — Bild-Upload fehlt, als "Text-only" gelabelt
+- **Pricing, Ad, Campaign, Crisis** — Noch nicht E2E getestet
+- **Multi-Runden** — Noch nicht getestet (nur 1 Runde bisher)
 
 ---
 
 ## TODOs — Nächste Session
 
-### Priorität 1 — Qualität & Nutzbarkeit
+### Priorität 1 — Kosten & Qualität
 
 | # | Aufgabe | Beschreibung |
 |---|---------|-------------|
 | N1 | **Gemini Flash als LLM** | Agenten-Calls auf Gemini Flash umstellen (20x günstiger als Haiku). Haiku nur für Synthese. Google AI API Key nötig. |
-| N2 | **Report Download (PDF)** | Report als PDF exportieren. Enthält: Getesteter Content, Ergebnis, Synthese, Kommentare, Persona-Analyse. |
-| N3 | **Report Sharing** | Öffentlicher Share-Link pro Report (ohne Login). Empfänger sieht Read-Only-Version. Optional: Ablaufdatum. |
 | N4 | **Restliche SimTypen testen** | Pricing, Ad Creative, Kampagnen-Check, Krisentest End-to-End durchspielen und Bugs fixen. |
-| N5 | **Antwort-Diversität verbessern** | Agenten-Kommentare klingen noch zu ähnlich ("Klingt interessant, aber..."). Prompt-Varianz erhöhen, verschiedene Einstiegssätze erzwingen. |
-| N6 | **Realtime funktioniert unzuverlässig** | Status-Updates kommen nicht immer an. Fallback-Polling einbauen wenn Realtime-Subscription nach 10s kein Update liefert. |
-
-### Priorität 2 — Features
-
-| # | Aufgabe | Beschreibung |
-|---|---------|-------------|
 | F1 | **Multi-Runden testen** | 2-3 Runden mit Netzwerk-Effekt (Agenten sehen Nachbar-Reaktionen). Bisher nur 1 Runde getestet. |
-| F2 | **Simulation-Redirect** | Nach Submit auf /simulation/new → Redirect zu /simulation/[id] prüfen |
-| F3 | **Rate Limiting** | Kein Schutz gegen API-Missbrauch |
-| F4 | **Runs-Reset monatlich** | runs_used wird nie zurückgesetzt |
-| F5 | **Report umbenennen** | User soll Report-Namen manuell ändern können |
 
-### Priorität 3 — Phase 2
+### Priorität 2 — Phase 2
 
 | # | Aufgabe | Beschreibung |
 |---|---------|-------------|
@@ -105,6 +130,7 @@
 | S2 | **E-Mail-Notifications** | "Simulation fertig" per E-Mail |
 | S3 | **Headless Browser Crawling** | Für SPAs/React-Seiten die ohne JS keinen Content haben |
 | S4 | **File-Uploads** | Ad Creative + Kampagne: Bild-Upload |
+| D1 | **Strategy Multi-Step** | Multi-Step Funnel-Simulation laut `docs/STRATEGY-REDESIGN.md` |
 
 ---
 
@@ -115,7 +141,7 @@
 | Frontend | Next.js 16 + TypeScript + Tailwind | ✅ Deployed |
 | Auth | Supabase Auth (Password + Magic Link) | ✅ Funktioniert |
 | DB | Supabase PostgreSQL (shared) | ✅ Funktioniert |
-| LLM (Agenten) | Claude Haiku 4.5 (Temperature 0.8) | ✅ Funktioniert — teuer (~$0.002/Agent) |
+| LLM (Agenten) | Claude Haiku 4.5 (Temperature 0.9, max_tokens 1000) | ✅ Funktioniert |
 | LLM (Synthese) | Claude Haiku 4.5 | ✅ Funktioniert |
 | Simulation | Supabase Edge Function (150s Timeout) | ✅ Deployed |
 | Hosting | Vercel Free Plan | ✅ Deployed |
@@ -134,18 +160,25 @@
 | Datei | Zweck |
 |---|---|
 | `supabase/functions/run-simulation/index.ts` | Edge Function: Handler, Agenten, Loop, Synthese |
-| `supabase/functions/run-simulation/presets.ts` | 5 Rich Presets + lokale Persona-Generierung |
+| `supabase/functions/run-simulation/presets.ts` | 5 Rich Presets + lokale Persona-Generierung + Name-Dedup |
 | `supabase/functions/run-simulation/network.ts` | 5 Netzwerk-Topologien |
-| `supabase/functions/run-simulation/report.ts` | Report-Generator |
+| `supabase/functions/run-simulation/report.ts` | Report-Generator mit dynamischen Insights |
 | `supabase/functions/run-simulation/types.ts` | Shared Types |
-| `src/app/(app)/simulation/new/page.tsx` | Neue Simulation (7 Typen, dynamische Felder) |
-| `src/app/(app)/simulation/[id]/page.tsx` | Report-Seite v2 |
+| `src/app/(app)/simulation/new/page.tsx` | Neue Simulation (8 Typen, dynamische Felder) |
+| `src/app/(app)/simulation/[id]/page.tsx` | Report-Seite v3 (PDF, Share, Rename) |
 | `src/app/(app)/reports/page.tsx` | Reports-Übersicht mit Filter + Suche |
-| `src/app/api/simulations/create/route.ts` | API: Erstellt Sim + Auto-Name + Edge Function |
+| `src/app/(app)/personas/page.tsx` | Persona-Übersicht mit Bearbeiten-Links |
+| `src/app/(app)/personas/[id]/page.tsx` | Persona bearbeiten |
+| `src/app/share/[token]/page.tsx` | Öffentliche Report-Seite (Read-Only) |
+| `src/app/api/simulations/create/route.ts` | API: Erstellt Sim + Auto-Name + Rate Limit |
 | `src/app/api/simulations/[id]/status/route.ts` | API: Status + result_data |
+| `src/app/api/simulations/[id]/share/route.ts` | API: Share-Token generieren/revoken |
+| `src/app/api/simulations/[id]/rename/route.ts` | API: Report umbenennen |
+| `src/app/api/personas/[id]/route.ts` | API: Persona GET/PATCH/DELETE |
 | `src/types/simulation.ts` | Frontend Types + SimType Config + Presets |
 | `docs/STYLEGUIDE.md` | Design-Tokens + Komponenten-Regeln |
+| `docs/STRATEGY-REDESIGN.md` | Konzept: Multi-Step Funnel-Simulation |
 
 ---
 
-*Letzte Aktualisierung: 9. April 2026*
+*Letzte Aktualisierung: 9. April 2026 (Abend)*

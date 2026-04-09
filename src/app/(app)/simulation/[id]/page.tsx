@@ -58,6 +58,7 @@ interface SimData {
   sim_depth: string;
   created_at: string;
   completed_at: string | null;
+  name: string | null;
   error_message: string | null;
   current_round: number | null;
   total_rounds: number | null;
@@ -100,6 +101,8 @@ export default function SimulationResultPage() {
   const [dots, setDots] = useState(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [simName, setSimName] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -125,6 +128,10 @@ export default function SimulationResultPage() {
       clearInterval(pollInterval);
     };
   }, [params.id]);
+
+  useEffect(() => {
+    if (sim?.name) setSimName(sim.name);
+  }, [sim?.name]);
 
   useEffect(() => {
     const interval = setInterval(() => setDots(d => (d + 1) % 4), 500);
@@ -154,6 +161,15 @@ export default function SimulationResultPage() {
       }
     } catch (e) { console.error("Share error:", e); }
     setShareLoading(false);
+  }
+
+  async function saveNewName() {
+    if (!sim || !simName.trim()) return;
+    await fetch(`/api/simulations/${sim.id}/rename`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: simName.trim() }),
+    });
+    setEditingName(false);
   }
 
   if (loading || !sim) {
@@ -260,6 +276,27 @@ export default function SimulationResultPage() {
         <h1 className="mt-3" style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, letterSpacing: "-0.03em" }}>
           Simulations-Report
         </h1>
+        {sim.name && (
+          <div className="flex items-center gap-2 mt-1">
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input value={simName} onChange={(e) => setSimName(e.target.value)}
+                  className="text-sm px-2 py-1 rounded border bg-transparent"
+                  style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)", fontFamily: "var(--font-sans)" }}
+                  autoFocus onKeyDown={(e) => { if (e.key === "Enter") saveNewName(); if (e.key === "Escape") setEditingName(false); }} />
+                <button onClick={saveNewName} className="text-xs text-accent cursor-pointer">Speichern</button>
+                <button onClick={() => setEditingName(false)} className="text-xs text-text-dim cursor-pointer">Abbrechen</button>
+              </div>
+            ) : (
+              <button onClick={() => setEditingName(true)} className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text cursor-pointer transition-colors">
+                {simName}
+                <svg className="w-3 h-3 text-text-dim" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <span className="badge" style={{ background: "var(--color-accent-glow)", color: "var(--color-accent)" }}>
             {TYPE_LABELS[sim.sim_type] ?? sim.sim_type}

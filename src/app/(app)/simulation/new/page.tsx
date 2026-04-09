@@ -376,12 +376,12 @@ export default function NewSimulationPage() {
           <div className="flex flex-col gap-3">
             {variants.map((v, i) => (
               <div key={i} className="relative">
-                <span className="absolute left-4 top-4 text-xs font-bold pointer-events-none z-10"
+                <div className="text-xs font-bold mb-1"
                   style={{ fontFamily: "var(--font-mono)", color: config.color, letterSpacing: "0.05em" }}>
                   {String.fromCharCode(65 + i)}
-                </span>
+                </div>
                 <AutoTextarea value={v} onChange={(val) => { const next = [...variants]; next[i] = val; setVariants(next); }}
-                  placeholder={config.variantPlaceholder ?? `Variante ${i + 1}...`} rows={2} className="pl-9 pt-4" />
+                  placeholder={config.variantPlaceholder ?? `Variante ${i + 1}...`} rows={2} />
                 {variants.length > (config.minVariants ?? 2) && (
                   <button onClick={() => setVariants(variants.filter((_, j) => j !== i))}
                     className="absolute right-3 top-3 text-text-dim hover:text-red transition-colors cursor-pointer">

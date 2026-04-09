@@ -302,3 +302,19 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Print Styles für PDF-Export */
+@media print {
+  body { background: white !important; color: #0f172a !important; font-size: 11px !important; }
+  .sidebar-bg, nav, .sidebar, [class*="sidebar"] { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
+  .card { border: 1px solid #e2e4ea !important; background: white !important; box-shadow: none !important; break-inside: avoid; }
+  .badge { border: 1px solid #e2e4ea !important; }
+  .btn-primary, .btn-secondary, button[onclick], a[href="/dashboard"], a[href="/simulation/new"] { display: none !important; }
+  [class*="animate-"] { animation: none !important; }
+  h1 { font-size: 20px !important; color: #0f172a !important; }
+  h2, h3 { font-size: 14px !important; color: #0f172a !important; }
+  p, span, div { color: #1e293b !important; }
+  .text-text-dim, .text-text-muted { color: #475569 !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}

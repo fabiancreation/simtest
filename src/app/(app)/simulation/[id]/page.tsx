@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -98,7 +98,6 @@ export default function SimulationResultPage() {
   const [sim, setSim] = useState<SimData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dots, setDots] = useState(0);
-  const reportRef = useRef<HTMLDivElement>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
 
@@ -132,28 +131,28 @@ export default function SimulationResultPage() {
     return () => clearInterval(interval);
   }, []);
 
-  async function downloadPDF() {
-    const html2pdf = (await import('html2pdf.js')).default;
-    if (!reportRef.current || !sim) return;
-    html2pdf().set({
-      margin: [10, 10, 10, 10],
-      filename: `simtest-report-${sim.id.slice(0, 8)}.pdf`,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(reportRef.current).save();
+  function downloadPDF() {
+    if (!sim) return;
+    window.print();
   }
 
   async function handleShare() {
     if (!sim) return;
     setShareLoading(true);
     try {
-      const res = await fetch(`/api/simulations/${sim.id}/share`, { method: 'POST' });
+      const res = await fetch(`/api/simulations/${sim.id}/share`, { method: "POST" });
+      if (!res.ok) { console.error("Share failed:", res.status); setShareLoading(false); return; }
       const data = await res.json();
       const url = `${window.location.origin}/share/${data.token}`;
       setShareUrl(url);
-      await navigator.clipboard.writeText(url);
-    } catch (e) { console.error(e); }
+      // Clipboard mit Fallback
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        // Fallback: prompt zeigen
+        window.prompt("Share-Link kopieren:", url);
+      }
+    } catch (e) { console.error("Share error:", e); }
     setShareLoading(false);
   }
 
@@ -249,7 +248,7 @@ export default function SimulationResultPage() {
   const buyRate = synthesis?.buy_rate ?? 0;
 
   return (
-    <div ref={reportRef} className="max-w-3xl space-y-8">
+    <div className="max-w-3xl space-y-8">
       {/* Header */}
       <div className="animate-slide-up">
         <Link href="/dashboard" className="text-xs text-text-dim hover:text-text-muted transition-colors flex items-center gap-1.5" style={{ fontFamily: "var(--font-mono)" }}>
@@ -271,7 +270,7 @@ export default function SimulationResultPage() {
             {sim.total_rounds && sim.total_rounds > 1 ? ` / ${sim.total_rounds} Runden` : ""}
           </span>
         </div>
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-3 print:hidden">
           <button onClick={downloadPDF} className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5"
             style={{ border: "1.5px solid var(--color-border)", color: "var(--color-text-dim)" }}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

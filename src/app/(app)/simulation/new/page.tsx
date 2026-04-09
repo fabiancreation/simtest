@@ -239,7 +239,7 @@ export default function NewSimulationPage() {
 
     if (focusQuestion.trim()) inputData.focus_question = focusQuestion;
     if (context.trim()) inputData.context = context;
-    if (audienceWarmth !== "cold") inputData.audience_warmth = audienceWarmth;
+    inputData.audience_warmth = audienceWarmth;
 
     if (!personaPreset && !personaId) {
       setError("Bitte Zielgruppe wählen.");

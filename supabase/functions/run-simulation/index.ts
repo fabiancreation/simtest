@@ -826,20 +826,22 @@ Deno.serve(async (req) => {
 
     if (sim.persona_id) {
       const { data: profile } = await supabase
-        .from("persona_profiles").select("personas, description")
+        .from("persona_profiles").select("description")
         .eq("id", sim.persona_id).single();
 
-      if (profile?.personas?.length) {
-        personas = profile.personas;
-      } else if (profile?.description) {
+      if (profile?.description) {
+        // Immer Pool-basiert: Cache-Lookup, dann Sampling
         const cached = await getCachedPersonas(sim.user_id, profile.description, sim.agent_count);
         if (cached) {
           personas = cached;
         } else {
-          personas = await generatePersonasViaAPI(profile.description, sim.agent_count);
-          await cachePersonas(sim.user_id, profile.description, sim.agent_count, personas);
+          // Pool von max(50, agent_count) generieren (API-Kosten begrenzen)
+          const poolSize = Math.max(50, sim.agent_count);
+          const pool = await generatePersonasViaAPI(profile.description, poolSize);
+          await cachePersonas(sim.user_id, profile.description, poolSize, pool);
+          shuffleArray(pool);
+          personas = pool.slice(0, sim.agent_count);
         }
-        await supabase.from("persona_profiles").update({ personas, agent_count_default: sim.agent_count }).eq("id", sim.persona_id);
       }
     } else if (sim.persona_preset) {
       const preset = PRESETS[sim.persona_preset];

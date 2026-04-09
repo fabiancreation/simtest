@@ -41,14 +41,16 @@ export default function PersonaCrowdSection({ C, mobile }) {
     });
   }
 
-  // Scroll tracking
+  // Scroll tracking — langsame Transformation über die gesamte Sektionshöhe
   useEffect(() => {
     function onScroll() {
       if (!sectionRef.current) return;
       const rect = sectionRef.current.getBoundingClientRect();
       const vh = window.innerHeight;
-      // Progress: 0 when section enters viewport bottom, 1 when section top reaches viewport center
-      const raw = 1 - (rect.top - vh * 0.3) / (vh * 0.7);
+      const sectionH = rect.height;
+      // Progress über die gesamte Sektionshöhe: 0 wenn oberer Rand bei 80% vh, 1 wenn unterer Rand bei 20% vh
+      const scrollRange = sectionH + vh * 0.6;
+      const raw = (vh * 0.8 - rect.top) / scrollRange;
       setScrollProgress(Math.max(0, Math.min(1, raw)));
     }
     window.addEventListener("scroll", onScroll, { passive: true });

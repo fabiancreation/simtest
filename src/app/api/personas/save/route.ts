@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       ai_confidence: body.aiConfidence ?? null,
       ai_reasoning: body.aiReasoning ?? null,
       enriched_at: body.aiEstimatedFields?.length ? new Date().toISOString() : null,
+      priority: body.priority ?? null,
       agent_count_default: 50,
     })
     .select()

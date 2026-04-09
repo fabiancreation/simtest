@@ -43,6 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.mediaConsumption !== undefined) updateData.media_consumption = body.mediaConsumption;
   if (body.techAffinity !== undefined) updateData.tech_affinity = body.techAffinity;
   if (body.priceSensitivity !== undefined) updateData.price_sensitivity = body.priceSensitivity;
+  if (body.priority !== undefined) updateData.priority = body.priority;
 
   // Invalidate cached personas when description changes
   if (body.description !== undefined) {

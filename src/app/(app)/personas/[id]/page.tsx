@@ -241,6 +241,7 @@ export default function EditPersonaPage() {
 
   // Form state
   const [name, setName] = useState("");
+  const [priority, setPriority] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [ageRange, setAgeRange] = useState<[number, number]>([25, 45]);
   const [genderSplit, setGenderSplit] = useState({ male: 48, female: 48, diverse: 4 });
@@ -274,6 +275,7 @@ export default function EditPersonaPage() {
         }
         const data = await res.json();
         setName(data.name || "");
+        setPriority(data.priority || null);
         setDescription(data.description || "");
         setAgeRange([data.age_min ?? 25, data.age_max ?? 45]);
         setGenderSplit({
@@ -316,7 +318,7 @@ export default function EditPersonaPage() {
           genderMale: genderSplit.male, genderFemale: genderSplit.female, genderDiverse: genderSplit.diverse,
           regions, urbanRural, education, incomeMin: incomeRange[0], incomeMax: incomeRange[1],
           buyingStyle, coreValues, painPoints, goals,
-          platforms, mediaConsumption, techAffinity, priceSensitivity,
+          platforms, mediaConsumption, techAffinity, priceSensitivity, priority,
         }),
       });
       const data = await res.json();
@@ -395,6 +397,24 @@ export default function EditPersonaPage() {
         <div className="space-y-6 animate-slide-up">
           <FieldBlock label="Name">
             <input value={name} onChange={e => setName(e.target.value)} placeholder="z.B. 'Fitness-Coaches DACH'" className="input" />
+          </FieldBlock>
+          <FieldBlock label="Priorität" hint="Wie wichtig ist diese Zielgruppe für dein Produkt?">
+            <div className="flex gap-2">
+              {([
+                { id: null, label: "Keine", color: "var(--color-text-dim)" },
+                { id: "primary", label: "Primär", color: "var(--color-accent)" },
+                { id: "secondary", label: "Sekundär", color: "var(--color-blue)" },
+                { id: "niche", label: "Nische", color: "var(--color-purple)" },
+              ] as const).map(p => (
+                <button key={p.label} onClick={() => setPriority(p.id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                  style={{
+                    border: `1.5px solid ${priority === p.id ? p.color : "var(--color-border)"}`,
+                    background: priority === p.id ? `${p.color}15` : "transparent",
+                    color: priority === p.id ? p.color : "var(--color-text-dim)",
+                  }}>{p.label}</button>
+              ))}
+            </div>
           </FieldBlock>
           <FieldBlock label="Beschreibung" hint="Wer sind diese Menschen?">
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}

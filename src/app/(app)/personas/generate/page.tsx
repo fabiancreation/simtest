@@ -86,8 +86,9 @@ export default function GeneratePersonaPage() {
       for (const idx of selected) {
         const seg = segments[idx];
         const body = {
-          name: `${seg.name} (${seg.priority === "primary" ? "Primär" : seg.priority === "secondary" ? "Sekundär" : "Nische"})`,
+          name: seg.name,
           description: seg.description,
+          priority: seg.priority,
           ageMin: seg.age_min,
           ageMax: seg.age_max,
           genderMale: seg.gender_male,

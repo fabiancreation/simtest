@@ -9,6 +9,7 @@ interface PersonaProfile {
   name: string;
   description: string;
   agent_count_default: number;
+  priority: string | null;
   ai_estimated_fields: string[] | null;
   ai_confidence: number | null;
   platforms: string[] | null;
@@ -26,7 +27,7 @@ export default function PersonasPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("persona_profiles")
-        .select("id, name, description, agent_count_default, ai_estimated_fields, ai_confidence, platforms, age_min, age_max, regions, created_at")
+        .select("id, name, description, agent_count_default, priority, ai_estimated_fields, ai_confidence, platforms, age_min, age_max, regions, created_at")
         .order("created_at", { ascending: false });
       if (data) setProfiles(data);
     }
@@ -93,7 +94,18 @@ export default function PersonasPage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="font-semibold" style={{ fontFamily: "var(--font-display)" }}>{p.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold" style={{ fontFamily: "var(--font-display)" }}>{p.name}</h3>
+                        {p.priority && (
+                          <span className="badge" style={{
+                            fontSize: 9,
+                            background: p.priority === "primary" ? "var(--color-accent-glow)" : p.priority === "secondary" ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)",
+                            color: p.priority === "primary" ? "var(--color-accent)" : p.priority === "secondary" ? "var(--color-blue)" : "var(--color-purple)",
+                          }}>
+                            {p.priority === "primary" ? "Primär" : p.priority === "secondary" ? "Sekundär" : "Nische"}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-text-muted mt-1 line-clamp-2">{p.description}</p>
                       {/* Meta row */}
                       <div className="flex items-center gap-3 mt-2 flex-wrap">

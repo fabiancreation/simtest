@@ -133,6 +133,7 @@
 | S3 | **Headless Browser Crawling** | Für SPAs/React-Seiten die ohne JS keinen Content haben |
 | S4 | **File-Uploads** | Ad Creative + Kampagne: Bild-Upload |
 | D1 | **Strategy Multi-Step** | Multi-Step Funnel-Simulation laut `docs/STRATEGY-REDESIGN.md` |
+| D2 | **"Nochmal testen"** | Sofort-Kopie einer Simulation mit identischem Input aber neuen Personas (1-Click Re-Run) |
 
 ---
 

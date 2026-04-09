@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   SIM_TYPES, PERSONA_PRESETS, AGENT_COUNTS, AGENT_COUNT_HINTS,
   type SimType, type SimDepth,
@@ -47,6 +47,8 @@ function AutoTextarea({ value, onChange, placeholder, rows = 3, className = "" }
 // --- Main page ---
 export default function NewSimulationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromId = searchParams.get("from");
 
   // Form state
   const [simType, setSimType] = useState<SimType>("copy");
@@ -102,6 +104,49 @@ export default function NewSimulationPage() {
     }
     load();
   }, []);
+
+  // Kopie von bestehender Simulation laden
+  useEffect(() => {
+    if (!fromId) return;
+    async function loadSource() {
+      const res = await fetch(`/api/simulations/${fromId}/status`);
+      if (!res.ok) return;
+      const sim = await res.json();
+      const d = sim.input_data ?? {};
+
+      setSimType(sim.sim_type as SimType);
+      if (sim.persona_preset) setPersonaPreset(sim.persona_preset);
+      if (sim.persona_id) setPersonaId(sim.persona_id);
+      if (sim.agent_count) setAgentCount(sim.agent_count);
+      if (d.context) setContext(d.context);
+      if (d.focus_question) setFocusQuestion(d.focus_question);
+
+      // SimType-spezifische Felder
+      if (d.variants) setVariants(d.variants);
+      if (d.offer) setOffer(d.offer);
+      if (d.price) setPriceSingle(prev => ({ ...prev, price: d.price }));
+      if (d.payment_model) setPriceSingle(prev => ({ ...prev, paymentModel: d.payment_model }));
+      if (d.price_variants) setPriceVariants(d.price_variants);
+      if (d.ad_variants) setAdVariants(d.ad_variants);
+      if (d.ad_platform) setAdPlatform(d.ad_platform);
+      if (d.ad_format) setAdFormat(d.ad_format);
+      if (d.urls) setUrls(d.urls);
+      if (d.landing_goal) setLandingGoal(d.landing_goal);
+      if (d.desired_action) setDesiredAction(d.desired_action);
+      if (d.campaign_brief) setCampaignBrief(d.campaign_brief);
+      if (d.campaign_goal) setCampaignGoal(d.campaign_goal);
+      if (d.campaign_channels) setCampaignChannels(d.campaign_channels);
+      if (d.crisis_message) setCrisisMessage(d.crisis_message);
+      if (d.crisis_type) setCrisisType(d.crisis_type);
+      if (d.crisis_channel) setCrisisChannel(d.crisis_channel);
+      if (d.counter_message) { setCounterEnabled(true); setCounterMessage(d.counter_message); }
+      if (d.strategy_idea) setStrategyIdea(d.strategy_idea);
+      if (d.strategy_market) setStrategyMarket(d.strategy_market);
+      if (d.strategy_competitors) setStrategyCompetitors(d.strategy_competitors);
+      if (d.strategy_pricing) setStrategyPricing(d.strategy_pricing);
+    }
+    loadSource();
+  }, [fromId]);
 
   // Section counter
   let sectionNum = 0;

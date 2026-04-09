@@ -141,6 +141,7 @@
 | LP | **Landing Page Überarbeitung** | Gesamte LP reviewen + verbessern. Persona-Animation Feinschliff (Linien, Verteilung, Performance). |
 | N1 | **Gemini Flash als LLM** | Agenten-Calls auf Gemini Flash umstellen (20x günstiger). Google AI API Key nötig. |
 | N4 | **Restliche SimTypen testen** | Pricing, Ad Creative, Kampagnen-Check, Krisentest E2E durchspielen. |
+| MK | **Marketing + Referral** | Referral-System (REF-Link → 10 Runs für beide), Marketing-Strategie brainstormen |
 | F1 | **Multi-Runden testen** | 2-3 Runden mit Netzwerk-Effekt. Bisher nur 1 Runde getestet. |
 
 ### Priorität 2 — Phase 2

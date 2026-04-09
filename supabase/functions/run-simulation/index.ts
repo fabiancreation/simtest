@@ -322,7 +322,7 @@ function getSimTypeFraming(simType: string, userContext?: string, audienceWarmth
       };
     case "strategy":
       return {
-        scenario: "Du scrollst durch deinen Feed und siehst eine Werbung/ein Angebot. Du bist ein ganz normaler Mensch, kein Marketing-Experte. Du weißt NICHTS über die Geschäftsstrategie dahinter -- du siehst nur das Angebot so wie ein Kunde es sehen würde. Bewerte NICHT ob der Funnel, das Marketing oder die Verkaufsstrategie gut ist. Reagiere einfach ehrlich: Spricht dich das an? Würdest du klicken? Würdest du das Freebie downloaden? Würdest du kaufen?",
+        scenario: "Du siehst folgendes Angebot oder Produkt. Reagiere NUR als potenzieller Kunde: Spricht dich das an? Würdest du es nutzen oder kaufen? Bewerte NUR was du hier liest -- kritisiere NICHT fehlende Informationen wie Testimonials, Bewertungen oder Social Proof. Stell dir vor, das Angebot ist genau so wie beschrieben. Würdest DU zugreifen?",
         scenarioRepeat: "Du siehst das Angebot erneut",
         actionContext: "auf dieses Angebot",
       };
@@ -861,8 +861,8 @@ Deno.serve(async (req) => {
         if (cached) {
           personas = cached;
         } else {
-          // Pool von max(50, agent_count) generieren (API-Kosten begrenzen)
-          const poolSize = Math.max(50, sim.agent_count);
+          // Pool von max(20, agent_count) generieren (Edge Function Timeout: 150s)
+          const poolSize = Math.max(20, sim.agent_count);
           const pool = await generatePersonasViaAPI(profile.description, poolSize);
           await cachePersonas(sim.user_id, profile.description, poolSize, pool);
           shuffleArray(pool);

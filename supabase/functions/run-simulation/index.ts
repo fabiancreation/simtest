@@ -224,8 +224,21 @@ function buildAgents(personas: RichPersona[], variants: Variant[], platformBehav
 // SIMULATION LOOP
 // ============================================
 
+// Warmth-Prefix: Wie bewusst ist die Zielgruppe ihr Problem?
+function getWarmthPrefix(warmth?: string): string {
+  switch (warmth) {
+    case "warm":
+      return "Du hast ein konkretes Problem und suchst aktiv nach einer Lösung. ";
+    case "hot":
+      return "Du vergleichst gerade aktiv verschiedene Anbieter für genau dieses Problem. Du weißt was du willst. ";
+    default: // "cold" oder undefined
+      return "";
+  }
+}
+
 // Kontext-Framing je nach Simulationstyp
-function getSimTypeFraming(simType: string, userContext?: string): { scenario: string; scenarioRepeat: string; actionContext: string } {
+function getSimTypeFraming(simType: string, userContext?: string, audienceWarmth?: string): { scenario: string; scenarioRepeat: string; actionContext: string } {
+  const warmth = getWarmthPrefix(audienceWarmth);
   switch (simType) {
     case "copy": {
       // Dynamisches Framing basierend auf dem Einsatzort
@@ -314,11 +327,7 @@ function getSimTypeFraming(simType: string, userContext?: string): { scenario: s
         actionContext: "auf dieses Angebot",
       };
     default:
-      return {
-        scenario: "Du siehst folgenden Inhalt",
-        scenarioRepeat: "Du siehst den Inhalt erneut",
-        actionContext: "darauf",
-      };
+      return { scenario: "Du siehst folgenden Inhalt", scenarioRepeat: "Du siehst den Inhalt erneut", actionContext: "darauf" };
   }
 }
 
@@ -342,8 +351,12 @@ function buildUserMessage(
   simType: string,
   userContext?: string,
   focusQuestion?: string,
+  audienceWarmth?: string,
 ): string {
-  const framing = getSimTypeFraming(simType, userContext);
+  const framing = getSimTypeFraming(simType, userContext, audienceWarmth);
+  const warmth = getWarmthPrefix(audienceWarmth);
+  // Warmth-Prefix ans Szenario hängen
+  const scenario = warmth + framing.scenario;
   const contextBlock = userContext?.trim()
     ? `\nKontext: ${userContext.trim()}\n`
     : "";
@@ -352,7 +365,7 @@ function buildUserMessage(
     : "";
 
   if (round === 1) {
-    return `${framing.scenario}:
+    return `${scenario}:
 
 "${variant.content}"
 ${contextBlock}${focusBlock}
@@ -477,6 +490,7 @@ async function simulateRound(
   simType: string,
   userContext?: string,
   focusQuestion?: string,
+  audienceWarmth?: string,
 ): Promise<Reaction[]> {
   const BATCH_SIZE = 10;
   const reactions: Reaction[] = [];
@@ -487,7 +501,7 @@ async function simulateRound(
     const results = await Promise.allSettled(
       batch.map(async (agent) => {
         const variant = variants.find(v => v.id === agent.assignedVariant)!;
-        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext, focusQuestion);
+        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext, focusQuestion, audienceWarmth);
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
@@ -924,11 +938,12 @@ Deno.serve(async (req) => {
     const allReactions: Reaction[] = [];
     const userContext = sim.input_data.context as string | undefined;
     const focusQuestion = sim.input_data.focus_question as string | undefined;
+    const audienceWarmth = sim.input_data.audience_warmth as string | undefined;
 
     for (let round = 1; round <= totalRounds; round++) {
       await supabase.from("simulations").update({ current_round: round }).eq("id", simulationId);
 
-      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext, focusQuestion);
+      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext, focusQuestion, audienceWarmth);
       allReactions.push(...roundReactions);
 
       // Reaktionen in DB speichern

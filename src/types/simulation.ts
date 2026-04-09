@@ -2,6 +2,7 @@
 
 export type SimType = "copy" | "product" | "pricing" | "ad" | "landing" | "campaign" | "crisis" | "strategy";
 export type SimDepth = "fast" | "balanced" | "deep";
+export type AudienceWarmth = "cold" | "warm" | "hot";
 export type SimStatus = "draft" | "queued" | "running" | "completed" | "failed";
 
 // Legacy compat

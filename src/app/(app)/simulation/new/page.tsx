@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   SIM_TYPES, PERSONA_PRESETS, AGENT_COUNTS, AGENT_COUNT_HINTS,
-  type SimType, type SimDepth,
+  type SimType, type SimDepth, type AudienceWarmth,
 } from "@/types/simulation";
 
 // --- Section wrapper ---
@@ -85,6 +85,7 @@ export default function NewSimulationPage() {
   const [focusQuestion, setFocusQuestion] = useState("");
   const [context, setContext] = useState("");
   const [simDepth, setSimDepth] = useState<SimDepth>("balanced");
+  const [audienceWarmth, setAudienceWarmth] = useState<AudienceWarmth>("cold");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -120,6 +121,7 @@ export default function NewSimulationPage() {
       if (sim.agent_count) setAgentCount(sim.agent_count);
       if (d.context) setContext(d.context);
       if (d.focus_question) setFocusQuestion(d.focus_question);
+      if (d.audience_warmth) setAudienceWarmth(d.audience_warmth);
 
       // SimType-spezifische Felder
       if (d.variants) setVariants(d.variants);
@@ -237,6 +239,7 @@ export default function NewSimulationPage() {
 
     if (focusQuestion.trim()) inputData.focus_question = focusQuestion;
     if (context.trim()) inputData.context = context;
+    if (audienceWarmth !== "cold") inputData.audience_warmth = audienceWarmth;
 
     if (!personaPreset && !personaId) {
       setError("Bitte Zielgruppe wählen.");
@@ -726,6 +729,30 @@ export default function NewSimulationPage() {
           </div>
         </Section>
       )}
+
+      {/* Zielgruppen-Wärme */}
+      <Section number={nextNum()} label="Kaufbereitschaft" hint="Wie bewusst ist die Zielgruppe ihr Problem? Beeinflusst die Reaktionstiefe.">
+        <div className="flex gap-2">
+          {([
+            { id: "cold" as AudienceWarmth, label: "Kalt", desc: "Stößt zufällig darauf" },
+            { id: "warm" as AudienceWarmth, label: "Warm", desc: "Sucht aktiv nach Lösung" },
+            { id: "hot" as AudienceWarmth, label: "Heiß", desc: "Vergleicht Anbieter" },
+          ]).map(w => (
+            <button key={w.id} onClick={() => setAudienceWarmth(w.id)}
+              className="flex-1 p-3 rounded-xl text-left transition-all cursor-pointer"
+              style={{
+                border: `2px solid ${audienceWarmth === w.id ? "var(--color-accent)" : "var(--color-border)"}`,
+                background: audienceWarmth === w.id ? "var(--color-accent-glow)" : "transparent",
+              }}>
+              <span className="text-sm font-semibold block" style={{
+                fontFamily: "var(--font-display)",
+                color: audienceWarmth === w.id ? "var(--color-accent)" : "var(--color-text)",
+              }}>{w.label}</span>
+              <span className="text-xs text-text-dim">{w.desc}</span>
+            </button>
+          ))}
+        </div>
+      </Section>
 
       {/* Fokus-Frage */}
       <Section number={nextNum()} label="Fokus-Frage" hint="Optional: Lenke die Simulation auf eine bestimmte Frage">

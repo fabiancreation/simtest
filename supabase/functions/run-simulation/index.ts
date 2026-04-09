@@ -630,6 +630,7 @@ async function generateSynthesis(
   allReactions: Reaction[],
   agents: Agent[],
   simType: string,
+  inputData?: Record<string, unknown>,
 ): Promise<{ summary: string; recommendations: string[]; objection_clusters: string[]; buy_rate: number }> {
   // Daten für den Synthese-Prompt aufbereiten
   const buyCount = allReactions.filter(r => r.wouldBuy).length;
@@ -666,22 +667,34 @@ Einwände: ${vObjections.join(" | ") || "keine"}`;
     : simType === "copy" ? "Textvarianten"
     : simType === "ad" ? "Werbeanzeigen"
     : simType === "crisis" ? "eine Krisensituation"
+    : simType === "strategy" ? "eine Geschäftsidee/Strategie"
     : "Content";
+
+  // Original-Input für Kontext aufbereiten (damit Synthese nicht Dinge empfiehlt, die bereits existieren)
+  let inputContext = "";
+  if (inputData) {
+    const ctx = inputData.context as string;
+    const focus = inputData.focus_question as string;
+    if (ctx) inputContext += `\nKONTEXT VOM NUTZER: ${ctx}`;
+    if (focus) inputContext += `\nFOKUS-FRAGE: ${focus}`;
+  }
 
   const response = await withRetry(() => anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1000,
-    system: `Du bist ein Marktforschungs-Analyst. Analysiere Persona-Reaktionen und gib konkrete Empfehlungen. Deutsch. NUR JSON, kein Markdown, keine Codeblocks.`,
+    system: `Du bist ein Marktforschungs-Analyst. Analysiere Persona-Reaktionen und gib konkrete Empfehlungen. Deutsch. NUR JSON, kein Markdown, keine Codeblocks.
+
+WICHTIG: Der Nutzer hat bereits bestimmte Maßnahmen und Ressourcen beschrieben. Empfehle NICHT Dinge, die der Nutzer bereits hat oder tut. Beziehe dich nur auf die tatsächlichen Einwände der Personas und schlage Verbesserungen vor, die über das hinausgehen, was bereits vorhanden ist.`,
     messages: [{
       role: "user",
       content: `${totalCount} Personas aus der Zielgruppe haben auf ${typeContext} reagiert.
-
+${inputContext}
 ${variantSummaries.join("\n\n---\n\n")}
 
 Erstelle eine Analyse als JSON:
 {
   "summary": "3-5 Sätze: Was sagt die Zielgruppe? Was ist die Kernaussage? Sei direkt und konkret, nicht generisch.",
-  "recommendations": ["3-5 konkrete, umsetzbare Empfehlungen. Jede beginnt mit einem Verb (Ergänze..., Entferne..., Teste..., Füge hinzu...). Beziehe dich auf die tatsächlichen Einwände."],
+  "recommendations": ["3-5 konkrete, umsetzbare Empfehlungen. Jede beginnt mit einem Verb (Ergänze..., Entferne..., Teste..., Füge hinzu...). Beziehe dich auf die tatsächlichen Einwände. Empfehle NICHTS, was der Nutzer laut Kontext bereits hat oder tut."],
   "objection_clusters": ["Die 3-4 häufigsten Einwand-Kategorien, jeweils in einem kurzen Satz zusammengefasst"]
 }
 
@@ -848,7 +861,7 @@ Deno.serve(async (req) => {
     const report = generateReport(agents, allReactions, variants);
 
     // 7. AI-Synthese (1 Haiku-Call für Zusammenfassung + Empfehlungen)
-    const synthesis = await generateSynthesis(variants, allReactions, agents, sim.sim_type);
+    const synthesis = await generateSynthesis(variants, allReactions, agents, sim.sim_type, sim.input_data);
 
     // 8. Ergebnis speichern
     await supabase.from("simulations").update({

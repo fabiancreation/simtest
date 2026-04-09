@@ -76,7 +76,13 @@ interface SimData {
 
 const TYPE_LABELS: Record<string, string> = {
   copy: "Copy Test", product: "Produkt-Check", pricing: "Pricing Test",
-  ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check", crisis: "Krisentest",
+  ad: "Ad Creative", landing: "Landing Page", campaign: "Kampagnen-Check", crisis: "Krisentest", strategy: "Business-Strategie",
+};
+
+const CONTENT_LABELS: Record<string, string> = {
+  copy: "Getesteter Content", product: "Getestetes Angebot", pricing: "Getestete Preise",
+  ad: "Getestete Anzeige", landing: "Getestete Landing Page", campaign: "Getestete Kampagne",
+  crisis: "Getestete Nachricht", strategy: "Getestete Strategie",
 };
 
 const CONFIDENCE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -236,7 +242,7 @@ export default function SimulationResultPage() {
 
       {/* === Getesteter Content === */}
       <div className="card p-6 animate-slide-up" style={{ animationDelay: "60ms" }}>
-        <h3 className="mb-4" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Getesteter Content</h3>
+        <h3 className="mb-4" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>{CONTENT_LABELS[sim.sim_type] ?? "Getesteter Content"}</h3>
         <div className="space-y-3">
           {variantTexts.map((text, i) => {
             const varId = String.fromCharCode(65 + i);
@@ -644,6 +650,13 @@ function extractVariantTexts(simType: string, inputData: Record<string, unknown>
     case "landing": return (inputData.urls as string[]) ?? [];
     case "campaign": return [inputData.campaign_brief as string ?? ""];
     case "crisis": return [inputData.crisis_message as string ?? ""];
+    case "strategy": {
+      const parts = [inputData.strategy_idea as string ?? ""];
+      if (inputData.strategy_market) parts.push(`Zielmarkt: ${inputData.strategy_market}`);
+      if (inputData.strategy_competitors) parts.push(`Wettbewerber: ${inputData.strategy_competitors}`);
+      if (inputData.strategy_pricing) parts.push(`Preisgestaltung: ${inputData.strategy_pricing}`);
+      return [parts.join("\n\n")];
+    }
     default: return [];
   }
 }

@@ -1,10 +1,12 @@
 "use client";
 import { useRef, useEffect, useState, useCallback } from "react";
 
-const VORNAMEN = ["Thomas","Stefan","Michael","Andreas","Markus","Lisa","Anna","Julia","Laura","Lena","Sarah","Maria","Sophie","Hannah","Lea","Daniel","Tobias","Alexander","Florian","Felix","Sandra","Nicole","Katharina","Claudia","Petra","Jonas","Leon","Emre","Nico","Tim","Mia","Emma","Jana","Miriam","Birgit","Kevin","Patrick","Lukas","Sven","Jan"];
-const NACHNAMEN = ["Müller","Schmidt","Fischer","Weber","Wagner","Becker","Schulz","Koch","Richter","Wolf","Schneider","Hoffmann","Braun","Krüger","Lange"];
-const BERUFE = ["Coach","Designerin","Entwickler","Lehrerin","Berater","Ärztin","Ingenieur","Gründerin","Freelancer","Managerin","Student","Pflegerin","Handwerker","Journalistin","Architektin","Texter","Trainerin","Analyst"];
-const STAEDTE = ["Berlin","Hamburg","München","Köln","Frankfurt","Stuttgart","Düsseldorf","Leipzig","Dresden","Hannover","Nürnberg","Bremen","Freiburg","Heidelberg","Kiel"];
+const VORNAMEN_M = ["Thomas","Stefan","Michael","Andreas","Markus","Daniel","Tobias","Alexander","Florian","Felix","Jonas","Leon","Emre","Nico","Tim","Kevin","Patrick","Lukas","Sven","Jan","Marco","Dennis","Christian","Martin","Jens"];
+const VORNAMEN_F = ["Lisa","Anna","Julia","Laura","Lena","Sarah","Maria","Sophie","Hannah","Lea","Sandra","Nicole","Katharina","Claudia","Petra","Mia","Emma","Jana","Miriam","Birgit","Sabine","Christina","Stefanie","Monika","Andrea"];
+const NACHNAMEN = ["Müller","Schmidt","Fischer","Weber","Wagner","Becker","Schulz","Koch","Richter","Wolf","Schneider","Hoffmann","Braun","Krüger","Lange","Werner","Lehmann","König","Hartmann","Neumann"];
+const BERUFE_M = ["Business Coach","Softwareentwickler","Projektmanager","Ingenieur","Lehrer","Architekt","Steuerberater","Vertriebsleiter","Handwerksmeister","Freelancer","Webdesigner","Polizist","Rechtsanwalt","Journalist","Arzt","Mechatroniker","IT-Administrator","Unternehmensberater","Personal Trainer","Fotograf","Social Media Manager","Grafikdesigner","Produktmanager","Teamlead IT","Geschäftsführer","BWL-Student","Barista","Content Creator","Werkstudent","Azubi Einzelhandel"];
+const BERUFE_F = ["Projektmanagerin","Designerin","Ärztin","Lehrerin","Gründerin","Managerin","Pflegekraft","Journalistin","Architektin","Trainerin","Beraterin","Sozialarbeiterin","Rechtsanwältin","Marketing-Leiterin","Ernährungsberaterin","UX Designerin","Yoga-Lehrerin","Kommunikationstrainerin","Physiotherapeutin","Mediengestalterin","Junior UX Designerin","Studentin","Praktikantin PR","Abteilungsleiterin","Prokuristin","Online-Kurserstellerin","Heilpraktikerin","Bankkauffrau","Erzieherin","Ingenieurin"];
+const STAEDTE = ["Berlin","Hamburg","München","Köln","Frankfurt","Stuttgart","Düsseldorf","Leipzig","Dresden","Hannover","Nürnberg","Bremen","Freiburg","Heidelberg","Kiel","Regensburg","Potsdam","Bonn","Essen","Dortmund","Rostock","Ulm","Göttingen","Würzburg","Oldenburg"];
 
 export default function PersonaCrowdSection({ C, mobile }) {
   const canvasRef = useRef(null);
@@ -21,14 +23,28 @@ export default function PersonaCrowdSection({ C, mobile }) {
   // Generate persona data once
   const personasRef = useRef(null);
   if (!personasRef.current) {
+    // Seeded random für stabile, aber vielfältige Personas
+    let seed = 42;
+    const rng = () => { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; };
+    const usedNames = new Set();
     personasRef.current = Array.from({ length: TOTAL }, (_, i) => {
-      const vorname = VORNAMEN[i % VORNAMEN.length];
-      const nachname = NACHNAMEN[i % NACHNAMEN.length];
+      const isMale = rng() > 0.5;
+      const vornamen = isMale ? VORNAMEN_M : VORNAMEN_F;
+      const berufe = isMale ? BERUFE_M : BERUFE_F;
+      let name;
+      let attempts = 0;
+      do {
+        const vorname = vornamen[Math.floor(rng() * vornamen.length)];
+        const nachname = NACHNAMEN[Math.floor(rng() * NACHNAMEN.length)];
+        name = `${vorname} ${nachname}`;
+        attempts++;
+      } while (usedNames.has(name) && attempts < 20);
+      usedNames.add(name);
       return {
-        name: `${vorname} ${nachname}`,
-        beruf: BERUFE[i % BERUFE.length],
-        age: 22 + (i * 7 + 13) % 38,
-        stadt: STAEDTE[i % STAEDTE.length],
+        name,
+        beruf: berufe[Math.floor(rng() * berufe.length)],
+        age: 20 + Math.floor(rng() * 42),
+        stadt: STAEDTE[Math.floor(rng() * STAEDTE.length)],
       };
     });
   }

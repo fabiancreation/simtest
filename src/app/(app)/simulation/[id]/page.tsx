@@ -495,8 +495,8 @@ export default function SimulationResultPage() {
         </div>
       )}
 
-      {/* === Key Insights === */}
-      {report.key_insights?.length > 0 && (
+      {/* === Key Insights (nur als Fallback wenn keine Synthese vorhanden) === */}
+      {report.key_insights?.length > 0 && !synthesis?.summary && (
         <div className="card p-6 animate-slide-up" style={{ animationDelay: "200ms" }}>
           <h3 className="mb-4" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Key Insights</h3>
           <ul className="space-y-3">

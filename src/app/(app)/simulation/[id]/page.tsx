@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -96,6 +96,7 @@ function fmt(n: number): string { return Number.isFinite(n) ? n.toFixed(1) : "0.
 
 export default function SimulationResultPage() {
   const params = useParams();
+  const router = useRouter();
   const [sim, setSim] = useState<SimData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dots, setDots] = useState(0);
@@ -103,6 +104,15 @@ export default function SimulationResultPage() {
   const [shareLoading, setShareLoading] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [simName, setSimName] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  async function handleDelete() {
+    if (!sim) return;
+    if (!confirm("Report wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
+    setDeleteLoading(true);
+    await fetch(`/api/simulations/${sim.id}`, { method: "DELETE" });
+    router.push("/reports");
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -322,6 +332,14 @@ export default function SimulationResultPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
             </svg>
             {shareUrl ? "Link kopiert!" : shareLoading ? "..." : "Teilen"}
+          </button>
+          <button onClick={handleDelete} disabled={deleteLoading}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5"
+            style={{ border: "1.5px solid var(--color-red)", color: "var(--color-red)" }}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+            {deleteLoading ? "..." : "Löschen"}
           </button>
         </div>
       </div>

@@ -272,9 +272,9 @@ function getSimTypeFraming(simType: string, userContext?: string): { scenario: s
       };
     case "strategy":
       return {
-        scenario: "Jemand stellt dir folgende Geschäftsidee / Strategie vor und fragt nach deiner ehrlichen Einschätzung als potenzieller Kunde",
-        scenarioRepeat: "Du denkst nochmal über die Geschäftsidee nach",
-        actionContext: "auf diese Geschäftsidee",
+        scenario: "Du stößt auf folgendes Angebot. Du bist ein potenzieller Kunde -- reagiere NUR aus deiner Perspektive als Käufer. Würdest du dieses Produkt/Angebot kaufen? Würdest du das Freebie herunterladen? Spricht dich die Werbung an? Bewerte NICHT die Geschäftsstrategie, sondern nur ob DU als Kunde zugreifen würdest",
+        scenarioRepeat: "Du siehst das Angebot erneut und überlegst nochmal",
+        actionContext: "auf dieses Angebot",
       };
     default:
       return {
@@ -304,17 +304,21 @@ function buildUserMessage(
   allAgents: Agent[],
   simType: string,
   userContext?: string,
+  focusQuestion?: string,
 ): string {
   const framing = getSimTypeFraming(simType, userContext);
   const contextBlock = userContext?.trim()
     ? `\nKontext: ${userContext.trim()}\n`
+    : "";
+  const focusBlock = focusQuestion?.trim()
+    ? `\nBeantworte in deinem internal_reasoning besonders diese Frage: ${focusQuestion.trim()}\n`
     : "";
 
   if (round === 1) {
     return `${framing.scenario}:
 
 "${variant.content}"
-${contextBlock}
+${contextBlock}${focusBlock}
 Wie reagierst du ${framing.actionContext}?
 ${JSON_RESPONSE_FORMAT}`;
   }
@@ -324,7 +328,7 @@ ${JSON_RESPONSE_FORMAT}`;
   return `${framing.scenarioRepeat}:
 
 "${variant.content}"
-${contextBlock}
+${contextBlock}${focusBlock}
 ${neighborReactions.length > 0
     ? `Du siehst diese Reaktionen von Leuten die du kennst:\n${neighborReactions.join("\n")}\n`
     : "Bisher hat kaum jemand darauf reagiert."
@@ -435,6 +439,7 @@ async function simulateRound(
   previousReactions: Reaction[],
   simType: string,
   userContext?: string,
+  focusQuestion?: string,
 ): Promise<Reaction[]> {
   const BATCH_SIZE = 10;
   const reactions: Reaction[] = [];
@@ -445,7 +450,7 @@ async function simulateRound(
     const results = await Promise.allSettled(
       batch.map(async (agent) => {
         const variant = variants.find(v => v.id === agent.assignedVariant)!;
-        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext);
+        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext, focusQuestion);
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
@@ -679,15 +684,34 @@ Einwände: ${vObjections.join(" | ") || "keine"}`;
     if (focus) inputContext += `\nFOKUS-FRAGE: ${focus}`;
   }
 
-  const response = await withRetry(() => anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1000,
-    system: `Du bist ein Marktforschungs-Analyst. Analysiere Persona-Reaktionen und gib konkrete Empfehlungen. Deutsch. NUR JSON, kein Markdown, keine Codeblocks.
+  // Strategy-spezifischer Synthese-Prompt: Konsumentenreaktionen → strategische Schlüsse
+  const systemPrompt = simType === "strategy"
+    ? `Du bist ein Strategie-Analyst. Du bekommst Konsumentenreaktionen auf ein Angebot/Produkt. Die Personas sind KEINE Marketing-Experten, sondern potenzielle Käufer. Deine Aufgabe:
+1. Analysiere die KONSUMENTENREAKTIONEN: Was würden die Leute kaufen, was nicht, warum?
+2. Leite daraus STRATEGISCHE EMPFEHLUNGEN ab — das ist DEINE Expertise, nicht die der Personas.
+3. Berücksichtige den Kontext des Nutzers — empfehle NICHTS, was bereits existiert.
+4. Wenn eine Fokus-Frage gestellt wurde, beantworte sie basierend auf den Daten.
+Deutsch. NUR JSON, kein Markdown, keine Codeblocks.`
+    : `Du bist ein Marktforschungs-Analyst. Analysiere Persona-Reaktionen und gib konkrete Empfehlungen. Deutsch. NUR JSON, kein Markdown, keine Codeblocks.
 
-WICHTIG: Der Nutzer hat bereits bestimmte Maßnahmen und Ressourcen beschrieben. Empfehle NICHT Dinge, die der Nutzer bereits hat oder tut. Beziehe dich nur auf die tatsächlichen Einwände der Personas und schlage Verbesserungen vor, die über das hinausgehen, was bereits vorhanden ist.`,
-    messages: [{
-      role: "user",
-      content: `${totalCount} Personas aus der Zielgruppe haben auf ${typeContext} reagiert.
+WICHTIG: Der Nutzer hat bereits bestimmte Maßnahmen und Ressourcen beschrieben. Empfehle NICHT Dinge, die der Nutzer bereits hat oder tut. Beziehe dich nur auf die tatsächlichen Einwände der Personas und schlage Verbesserungen vor, die über das hinausgehen, was bereits vorhanden ist.`;
+
+  const userPrompt = simType === "strategy"
+    ? `${totalCount} potenzielle Kunden aus der Zielgruppe haben auf ein Angebot reagiert. Sie wurden als KONSUMENTEN befragt, nicht als Strategie-Berater.
+${inputContext}
+
+KONSUMENTENREAKTIONEN:
+${variantSummaries.join("\n\n---\n\n")}
+
+Erstelle eine strategische Analyse als JSON:
+{
+  "summary": "3-5 Sätze: Wie reagiert die Zielgruppe ALS KÄUFER? Würden sie kaufen? Was zieht sie an, was schreckt ab? Beantworte die Fokus-Frage wenn vorhanden.",
+  "recommendations": ["3-5 strategische Empfehlungen, abgeleitet aus den Konsumentenreaktionen. Jede beginnt mit einem Verb. Empfehle NICHTS, was der Nutzer laut Kontext bereits hat. Unterscheide klar zwischen dem was die KONSUMENTEN sagen und deinen STRATEGISCHEN Schlüssen daraus."],
+  "objection_clusters": ["Die 3-4 häufigsten Kaufbarrieren aus Konsumentensicht, jeweils in einem kurzen Satz"]
+}
+
+Nur JSON, keine Erklärungen.`
+    : `${totalCount} Personas aus der Zielgruppe haben auf ${typeContext} reagiert.
 ${inputContext}
 ${variantSummaries.join("\n\n---\n\n")}
 
@@ -698,7 +722,15 @@ Erstelle eine Analyse als JSON:
   "objection_clusters": ["Die 3-4 häufigsten Einwand-Kategorien, jeweils in einem kurzen Satz zusammengefasst"]
 }
 
-Nur JSON, keine Erklärungen.`,
+Nur JSON, keine Erklärungen.`;
+
+  const response = await withRetry(() => anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1000,
+    system: systemPrompt,
+    messages: [{
+      role: "user",
+      content: userPrompt,
     }],
   })) as { content: Array<{ type: string; text?: string }> };
 
@@ -831,11 +863,12 @@ Deno.serve(async (req) => {
     // 5. Multi-Runden-Simulation
     const allReactions: Reaction[] = [];
     const userContext = sim.input_data.context as string | undefined;
+    const focusQuestion = sim.input_data.focus_question as string | undefined;
 
     for (let round = 1; round <= totalRounds; round++) {
       await supabase.from("simulations").update({ current_round: round }).eq("id", simulationId);
 
-      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext);
+      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext, focusQuestion);
       allReactions.push(...roundReactions);
 
       // Reaktionen in DB speichern

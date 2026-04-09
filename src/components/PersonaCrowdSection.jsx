@@ -110,18 +110,21 @@ export default function PersonaCrowdSection({ C, mobile }) {
       };
     }
 
-    // Generate network positions (force-directed-ish)
+    // Generate network positions ONCE (stable across frames)
     const rng = seededRandom(99);
-    function getNetworkPos(i) {
+    const w0 = W();
+    const h0 = H();
+    const networkPositions = [];
+    for (let i = 0; i < TOTAL; i++) {
       const angle = (i / TOTAL) * Math.PI * 2 + rng() * 0.8;
-      const radius = 60 + rng() * (Math.min(W(), H()) * 0.38);
-      return {
-        x: W() / 2 + Math.cos(angle) * radius * (0.7 + rng() * 0.6),
-        y: H() / 2 + Math.sin(angle) * radius * (0.7 + rng() * 0.6),
-      };
+      const radius = 60 + rng() * (Math.min(w0, h0) * 0.38);
+      networkPositions.push({
+        x: w0 / 2 + Math.cos(angle) * radius * (0.7 + rng() * 0.6),
+        y: h0 / 2 + Math.sin(angle) * radius * (0.7 + rng() * 0.6),
+      });
     }
 
-    // Generate connections for network (each node connects to 2-4 neighbors)
+    // Generate connections ONCE
     const connections = [];
     for (let i = 0; i < TOTAL; i++) {
       const numConn = 2 + Math.floor(rng() * 3);
@@ -143,7 +146,7 @@ export default function PersonaCrowdSection({ C, mobile }) {
       const nodes = [];
       for (let i = 0; i < TOTAL; i++) {
         const grid = getGridPos(i);
-        const net = getNetworkPos(i);
+        const net = networkPositions[i];
         nodes.push({
           x: grid.x + (net.x - grid.x) * eased,
           y: grid.y + (net.y - grid.y) * eased,

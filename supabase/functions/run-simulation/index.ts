@@ -38,6 +38,17 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
 }
 
 // ============================================
+// HELPERS
+// ============================================
+
+function shuffleArray<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+// ============================================
 // PERSONA CACHE
 // ============================================
 
@@ -51,17 +62,41 @@ async function hashDescription(text: string): Promise<string> {
 async function getCachedPersonas(userId: string, description: string, count: number): Promise<RichPersona[] | null> {
   const hash = await hashDescription(description);
   const { data } = await supabase
-    .from("persona_cache").select("personas")
-    .eq("user_id", userId).eq("description_hash", hash).eq("agent_count", count)
+    .from("persona_cache").select("personas, agent_count")
+    .eq("user_id", userId).eq("description_hash", hash)
+    .gte("agent_count", count)
+    .order("agent_count", { ascending: false })
+    .limit(1)
     .maybeSingle();
-  return data?.personas ?? null;
+  if (!data?.personas) return null;
+  // Zufällig N aus dem Pool samplen
+  const pool = [...data.personas];
+  shuffleArray(pool);
+  return pool.slice(0, count);
 }
 
-async function cachePersonas(userId: string, description: string, count: number, personas: RichPersona[]): Promise<void> {
+async function cachePersonas(userId: string, description: string, _count: number, personas: RichPersona[]): Promise<void> {
   const hash = await hashDescription(description);
-  await supabase.from("persona_cache").upsert({
-    user_id: userId, description_hash: hash, agent_count: count, personas,
-  }, { onConflict: "user_id,description_hash,agent_count" });
+  // Prüfe ob Pool bereits existiert
+  const { data: existing } = await supabase
+    .from("persona_cache").select("personas, agent_count")
+    .eq("user_id", userId).eq("description_hash", hash)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.personas) {
+    // Merge: neue Personas zum Pool hinzufügen, Duplikate nach Name filtern
+    const existingNames = new Set((existing.personas as RichPersona[]).map((p: RichPersona) => p.name));
+    const newPersonas = personas.filter((p: RichPersona) => !existingNames.has(p.name));
+    const merged = [...(existing.personas as RichPersona[]), ...newPersonas];
+    await supabase.from("persona_cache").update({
+      agent_count: merged.length, personas: merged,
+    }).eq("user_id", userId).eq("description_hash", hash);
+  } else {
+    await supabase.from("persona_cache").insert({
+      user_id: userId, description_hash: hash, agent_count: personas.length, personas,
+    });
+  }
 }
 
 // ============================================
@@ -811,8 +846,16 @@ Deno.serve(async (req) => {
       if (preset) {
         const cacheKey = `preset:${sim.persona_preset}`;
         const cached = await getCachedPersonas(sim.user_id, cacheKey, sim.agent_count);
-        personas = cached ?? generatePersonasFromPreset(preset, sim.agent_count);
-        if (!cached) await cachePersonas(sim.user_id, cacheKey, sim.agent_count, personas);
+        if (cached) {
+          personas = cached;
+        } else {
+          // Pool von max(200, agent_count) generieren
+          const poolSize = Math.max(200, sim.agent_count);
+          const pool = generatePersonasFromPreset(preset, poolSize);
+          await cachePersonas(sim.user_id, cacheKey, poolSize, pool);
+          shuffleArray(pool);
+          personas = pool.slice(0, sim.agent_count);
+        }
       } else {
         personas = await generatePersonasViaAPI(
           `Breiter Querschnitt der deutschsprachigen Bevölkerung, 25-55 Jahre.`,

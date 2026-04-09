@@ -111,9 +111,14 @@ export default function PersonasPage() {
                     {p.agent_count_default} Agenten
                   </span>
                 </div>
-                <p className="text-xs text-text-dim mt-3" style={{ fontFamily: "var(--font-mono)", paddingLeft: 52 }}>
-                  {new Date(p.created_at).toLocaleDateString("de-DE")}
-                </p>
+                <div className="flex items-center justify-between mt-3" style={{ paddingLeft: 52 }}>
+                  <p className="text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>
+                    {new Date(p.created_at).toLocaleDateString("de-DE")}
+                  </p>
+                  <Link href={`/personas/${p.id}`} className="text-xs font-medium transition-opacity hover:opacity-80" style={{ color: "var(--color-accent)" }}>
+                    Bearbeiten
+                  </Link>
+                </div>
               </div>
             );
           })}

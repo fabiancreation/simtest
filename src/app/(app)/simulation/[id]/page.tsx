@@ -454,10 +454,14 @@ export default function SimulationResultPage() {
       </div>
 
       {/* === AI-Synthese: Zusammenfassung + Empfehlungen === */}
-      {synthesis?.summary && (
+      {synthesis && (synthesis.summary || synthesis.objection_clusters?.length > 0 || synthesis.recommendations?.length > 0) && (
         <div className="card p-6 animate-slide-up" style={{ animationDelay: "140ms" }}>
-          <h3 className="mb-3" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Zusammenfassung</h3>
-          <p className="text-sm text-text-muted leading-relaxed">{synthesis.summary}</p>
+          {synthesis.summary && (
+            <>
+              <h3 className="mb-3" style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700 }}>Zusammenfassung</h3>
+              <p className="text-sm text-text-muted leading-relaxed">{synthesis.summary}</p>
+            </>
+          )}
 
           {synthesis.objection_clusters?.length > 0 && (
             <div className="mt-5">

@@ -786,7 +786,19 @@ Nur JSON, keine Erklärungen.`;
     };
   } catch (e) {
     console.error("Synthese-Parse-Fehler:", e, "Raw:", rawText.slice(0, 200));
-    return { summary: "", recommendations: [], objection_clusters: [], buy_rate: buyRate };
+    // Fallback: Synthese aus Rohdaten generieren
+    const topObjections = allReactions
+      .map(r => r.biggestObjection)
+      .filter((o): o is string => o !== null && o.length > 3)
+      .slice(0, 4);
+    const engageCount = allReactions.filter(r => r.action !== "ignore").length;
+    const engageRate = Math.round((engageCount / Math.max(1, totalCount)) * 100);
+    return {
+      summary: `${engageRate}% Engagement bei ${totalCount} Personas. Kaufbereitschaft: ${Math.round(buyRate * 100)}%. ${topObjections.length > 0 ? `Häufigste Einwände: ${topObjections.slice(0, 2).join("; ")}.` : ""}`,
+      recommendations: [],
+      objection_clusters: topObjections,
+      buy_rate: buyRate,
+    };
   }
 }
 

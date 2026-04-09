@@ -196,7 +196,7 @@ export default function SimulationResultPage() {
     const roundInfo = sim.total_rounds && sim.total_rounds > 1 && sim.current_round
       ? ` (Runde ${sim.current_round}/${sim.total_rounds})` : "";
     return (
-      <div className="max-w-lg mx-auto mt-16 text-center space-y-8 animate-slide-up">
+      <div className="max-w-lg mt-16 text-center space-y-8 animate-slide-up">
         <div className="relative w-24 h-24 mx-auto">
           <div className="absolute inset-0 rounded-2xl animate-glow" style={{ background: "var(--color-accent-glow)", border: "1px solid var(--color-accent)" }} />
           <div className="absolute inset-0 flex items-center justify-center">
@@ -209,7 +209,7 @@ export default function SimulationResultPage() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800 }}>
             Simulation läuft{roundInfo}{".".repeat(dots)}
           </h1>
-          <p className="text-text-muted text-sm mt-2">{sim.agent_count} Agenten reagieren auf deine Varianten</p>
+          <p className="text-text-muted text-sm mt-2">{sim.agent_count} Personas reagieren auf deinen Input</p>
         </div>
         <div className="card p-5 text-left mx-auto max-w-xs space-y-3">
           <div className="flex justify-between"><span className="text-xs text-text-dim" style={{ fontFamily: "var(--font-mono)" }}>TYP</span><span className="text-sm text-text-muted">{TYPE_LABELS[sim.sim_type] ?? sim.sim_type}</span></div>

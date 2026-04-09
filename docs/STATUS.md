@@ -1,6 +1,6 @@
 # SimTest — Projekt-Status
 
-> Stand: 10. April 2026
+> Stand: 10. April 2026 (Nacht)
 > Deployed: Vercel (via GitHub `fabiancreation/simtest`, auto-deploy auf main)
 > Supabase: Shared mit Funnel Architect (Ref: `ajrshllvafqpbdhxhgsh`)
 > Edge Function: `run-simulation` deployed (150s Timeout, 5 Module)
@@ -78,6 +78,11 @@
 - Monatlicher Runs-Reset via pg_cron (015)
 - Persona-Priorität: primary/secondary/niche (016)
 
+### Landing Page
+- **Persona-Netzwerk-Animation** — 200 Nodes als Force-Directed Canvas-Animation im AgentCanvas-Stil
+- **Charakter-Karten** — 3 Beispiel-Personas mit Big Five, Pain Points, Kaufauslöser, Medien, Einwand
+- **Geschlechtergerechte Berufe** — 30 Berufe pro Geschlecht, passend zum Vornamen
+
 ---
 
 ## Was funktioniert (getestet)
@@ -96,7 +101,13 @@
 - ✅ Report löschen (mit Bestätigungsdialog)
 - ✅ PDF-Export (Print)
 - ✅ Report-Sharing (öffentlicher Link)
-- ✅ Persona-Pool: Eigene Personas werden als 50er-Pool gesampelt (nicht immer dieselben)
+- ✅ Persona-Pool: Eigene Personas werden als 20er-Pool gesampelt (nicht immer dieselben)
+- ✅ Zielgruppen-Generator (aus URL/Produktbeschreibung, 2-3 Segmente mit Priorität)
+- ✅ Persona-Priorität (Primär/Sekundär/Nische) als DB-Feld + UI
+- ✅ Kaufbereitschafts-Toggle (Kalt/Warm/Heiß) pro Simulation
+- ✅ Simulation kopieren (vorausgefülltes Formular via ?from=)
+- ✅ Report löschen (Übersicht + Detail)
+- ✅ Neue Persona direkt aus Simulation erstellen (Link unter Dropdown)
 - ✅ Realtime Updates + Fallback-Polling
 - ✅ would_buy + biggest_objection in DB persistent
 - ✅ Error Handling (Fehlermeldung sichtbar)
@@ -126,10 +137,11 @@
 
 | # | Aufgabe | Beschreibung |
 |---|---------|-------------|
-| P1 | **Projekte** | `projects`-Tabelle, CRUD-API, Projekt-Selector, Filter auf Personas + Reports. Grundfunktion für alle Pläne. ~30-45 Min. |
-| N1 | **Gemini Flash als LLM** | Agenten-Calls auf Gemini Flash umstellen (20x günstiger als Haiku). Haiku nur für Synthese. Google AI API Key nötig. |
-| N4 | **Restliche SimTypen testen** | Pricing, Ad Creative, Kampagnen-Check, Krisentest End-to-End durchspielen und Bugs fixen. |
-| F1 | **Multi-Runden testen** | 2-3 Runden mit Netzwerk-Effekt (Agenten sehen Nachbar-Reaktionen). Bisher nur 1 Runde getestet. |
+| P1 | **Projekte** | `projects`-Tabelle, CRUD-API, Projekt-Selector, Filter auf Personas + Reports. ~30-45 Min. |
+| LP | **Landing Page Überarbeitung** | Gesamte LP reviewen + verbessern. Persona-Animation Feinschliff (Linien, Verteilung, Performance). |
+| N1 | **Gemini Flash als LLM** | Agenten-Calls auf Gemini Flash umstellen (20x günstiger). Google AI API Key nötig. |
+| N4 | **Restliche SimTypen testen** | Pricing, Ad Creative, Kampagnen-Check, Krisentest E2E durchspielen. |
+| F1 | **Multi-Runden testen** | 2-3 Runden mit Netzwerk-Effekt. Bisher nur 1 Runde getestet. |
 
 ### Priorität 2 — Phase 2
 
@@ -194,4 +206,4 @@
 
 ---
 
-*Letzte Aktualisierung: 10. April 2026*
+*Letzte Aktualisierung: 10. April 2026 (Nacht)*

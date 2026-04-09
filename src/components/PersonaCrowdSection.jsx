@@ -22,7 +22,6 @@ export default function PersonaCrowdSection({ C, mobile }) {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [hoveredNode, setHoveredNode] = useState(null);
   const nodesRef = useRef([]);
-  const animFrameRef = useRef(null);
 
   const TOTAL = mobile ? 80 : 200;
   const COLORS = [C.accent, C.purple, C.blue, C.accentDim, "#f59e0b", "#ec4899", "#14b8a6", "#8b5cf6"];
@@ -175,14 +174,12 @@ export default function PersonaCrowdSection({ C, mobile }) {
         }
       }
 
-      // Draw nodes
+      // Draw nodes (static, no pulsing)
       const nodeSize = mobile ? 12 : 16;
-      const now = Date.now();
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         const isHovered = hoveredNode === i;
-        const pulse = Math.sin(now / 1500 + i * 0.3) * 0.15 + 0.85; // Subtle pulse
-        const size = (isHovered ? nodeSize * 1.8 : nodeSize) * (isHovered ? 1 : pulse);
+        const size = isHovered ? nodeSize * 1.8 : nodeSize;
         const rgb = hexToRgb(n.color);
 
         // Glow for hovered
@@ -212,13 +209,12 @@ export default function PersonaCrowdSection({ C, mobile }) {
         ctx.fillText(n.initials, n.x, n.y);
       }
 
-      animFrameRef.current = requestAnimationFrame(draw);
+      // Kein requestAnimationFrame-Loop — nur bei Scroll/Hover wird neu gezeichnet
     }
 
     draw();
     return () => {
       window.removeEventListener("resize", resize);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, [scrollProgress, hoveredNode, mobile, TOTAL, COLORS]);
 

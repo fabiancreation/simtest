@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -98,6 +98,9 @@ export default function SimulationResultPage() {
   const [sim, setSim] = useState<SimData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dots, setDots] = useState(0);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -128,6 +131,31 @@ export default function SimulationResultPage() {
     const interval = setInterval(() => setDots(d => (d + 1) % 4), 500);
     return () => clearInterval(interval);
   }, []);
+
+  async function downloadPDF() {
+    const html2pdf = (await import('html2pdf.js')).default;
+    if (!reportRef.current || !sim) return;
+    html2pdf().set({
+      margin: [10, 10, 10, 10],
+      filename: `simtest-report-${sim.id.slice(0, 8)}.pdf`,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(reportRef.current).save();
+  }
+
+  async function handleShare() {
+    if (!sim) return;
+    setShareLoading(true);
+    try {
+      const res = await fetch(`/api/simulations/${sim.id}/share`, { method: 'POST' });
+      const data = await res.json();
+      const url = `${window.location.origin}/share/${data.token}`;
+      setShareUrl(url);
+      await navigator.clipboard.writeText(url);
+    } catch (e) { console.error(e); }
+    setShareLoading(false);
+  }
 
   if (loading || !sim) {
     return (
@@ -221,7 +249,7 @@ export default function SimulationResultPage() {
   const buyRate = synthesis?.buy_rate ?? 0;
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div ref={reportRef} className="max-w-3xl space-y-8">
       {/* Header */}
       <div className="animate-slide-up">
         <Link href="/dashboard" className="text-xs text-text-dim hover:text-text-muted transition-colors flex items-center gap-1.5" style={{ fontFamily: "var(--font-mono)" }}>
@@ -242,6 +270,23 @@ export default function SimulationResultPage() {
             {new Date(sim.created_at).toLocaleDateString("de-DE")} / {sim.agent_count} Agenten
             {sim.total_rounds && sim.total_rounds > 1 ? ` / ${sim.total_rounds} Runden` : ""}
           </span>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button onClick={downloadPDF} className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5"
+            style={{ border: "1.5px solid var(--color-border)", color: "var(--color-text-dim)" }}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            PDF
+          </button>
+          <button onClick={handleShare} disabled={shareLoading}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5"
+            style={{ border: "1.5px solid var(--color-border)", color: shareUrl ? "var(--color-accent)" : "var(--color-text-dim)" }}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+            </svg>
+            {shareUrl ? "Link kopiert!" : shareLoading ? "..." : "Teilen"}
+          </button>
         </div>
       </div>
 

@@ -150,6 +150,8 @@ function buildSystemPrompt(persona: RichPersona, platformBehavior?: { ignore_pro
     }
   }
 
+  lines.push("Dein Kommentar-Stil: Manchmal stellst du eine direkte Frage, manchmal teilst du eine persönliche Erfahrung, manchmal machst du einen kurzen Einwurf, manchmal gibst du eine Empfehlung. Variiere Länge und Ton - nicht jeder Kommentar muss ausführlich sein.");
+
   lines.push("");
   lines.push("WICHTIG: Du antwortest IMMER auf Deutsch und im Charakter dieser Person. Du bist eine echte Person mit eigener Meinung. Reagiere natürlich - manche Dinge findest du gut, andere nicht. Du bist weder automatisch skeptisch noch automatisch begeistert. Deine Reaktion hängt davon ab, ob der Content zu deinen Werten, Problemen und Auslösern passt.");
 
@@ -288,7 +290,7 @@ function getSimTypeFraming(simType: string, userContext?: string): { scenario: s
 const JSON_RESPONSE_FORMAT = `Antworte NUR mit diesem JSON (kein anderer Text):
 {
   "action": "like" oder "comment" oder "share" oder "ignore",
-  "comment_text": "Dein Kommentar falls action=comment, sonst null. Beginne NICHT mit 'Interessant' oder 'Klingt interessant'. Schreibe so wie DU wirklich reden würdest.",
+  "comment_text": "Dein Kommentar falls action=comment, sonst null. Beginne NICHT mit: 'Interessant', 'Klingt interessant', 'Das klingt', 'Spannend', 'Wow', 'Oh', 'Hmm', 'Also', 'Na ja', 'Grundsätzlich'. Schreibe so wie DU wirklich reden würdest - kurz, direkt, mit deinen eigenen Worten. Mal eine Frage, mal eine persönliche Erfahrung, mal ein kurzer Einwurf.",
   "internal_reasoning": "Was denkst du WIRKLICH? Sei konkret und ehrlich. Nenne das größte Problem ODER den stärksten Kaufgrund aus DEINER Perspektive.",
   "interest_level": 1-10,
   "credibility_rating": 1-10,
@@ -454,8 +456,8 @@ async function simulateRound(
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
-          max_tokens: 600,
-          temperature: 0.8,
+          max_tokens: 1000,
+          temperature: 0.9,
           system: agent.systemPrompt,
           messages: [{ role: "user", content: userMessage }],
         })) as { content: Array<{ type: string; text?: string }> };

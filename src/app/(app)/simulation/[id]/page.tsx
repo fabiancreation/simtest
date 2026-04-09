@@ -116,7 +116,12 @@ export default function SimulationResultPage() {
         filter: `id=eq.${params.id}`,
       }, () => { fetchInitial(); })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    // Fallback-Polling alle 5s falls Realtime ausfällt
+    const pollInterval = setInterval(() => { fetchInitial(); }, 5000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
   }, [params.id]);
 
   useEffect(() => {

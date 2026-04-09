@@ -304,6 +304,7 @@ export interface RichPersona {
 
 export function generatePersonasFromPreset(preset: PresetData, count: number): RichPersona[] {
   const personas: RichPersona[] = [];
+  const usedNames = new Set<string>();
 
   for (let i = 0; i < count; i++) {
     const genderKey = weightedPick(preset.demographics.gender as Record<string, number>);
@@ -311,7 +312,13 @@ export function generatePersonasFromPreset(preset: PresetData, count: number): R
     const isMale = genderKey === "male";
 
     const vornamen = isMale ? VORNAMEN_M : VORNAMEN_F;
-    const name = `${vornamen[Math.floor(Math.random() * vornamen.length)]} ${NACHNAMEN[Math.floor(Math.random() * NACHNAMEN.length)]}`;
+    let name: string;
+    let nameAttempts = 0;
+    do {
+      name = `${vornamen[Math.floor(Math.random() * vornamen.length)]} ${NACHNAMEN[Math.floor(Math.random() * NACHNAMEN.length)]}`;
+      nameAttempts++;
+    } while (usedNames.has(name) && nameAttempts < 20);
+    usedNames.add(name);
 
     const age = sampleFromDistribution(preset.demographics.age);
     const income = sampleFromDistribution(preset.demographics.income_monthly_net_eur);

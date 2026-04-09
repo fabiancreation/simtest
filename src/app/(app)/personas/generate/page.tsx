@@ -161,7 +161,7 @@ export default function GeneratePersonaPage() {
           Zielgruppe aus Produkt generieren
         </h1>
         <p className="text-text-muted mt-1 text-sm">
-          Beschreibe dein Produkt oder gib eine URL ein. Die KI analysiert deine Zielgruppe.
+          Gib eine URL ein, beschreibe dein Produkt, oder nutze beides. Die KI analysiert deine Zielgruppe.
         </p>
       </div>
 
@@ -194,14 +194,14 @@ export default function GeneratePersonaPage() {
         {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
-          <span className="text-[11px] text-text-dim uppercase tracking-wider">oder</span>
+          <span className="text-[11px] text-text-dim uppercase tracking-wider">und / oder</span>
           <div className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
         </div>
 
         {/* Description */}
         <div>
           <label className="block text-sm font-medium mb-1.5" style={{ fontFamily: "var(--font-display)" }}>
-            Oder beschreibe dein Produkt/Angebot
+            Beschreibe dein Produkt/Angebot
           </label>
           <textarea
             value={description}

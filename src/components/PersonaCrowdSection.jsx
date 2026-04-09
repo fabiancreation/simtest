@@ -73,7 +73,7 @@ export default function PersonaCrowdSection({ C, mobile }) {
       radius: 2 + Math.random() * 2.5,
       color: colors[i % colors.length],
       pulse: Math.random() * Math.PI * 2,
-      influenceRadius: 50 + Math.random() * 30,
+      influenceRadius: 90 + Math.random() * 50,
       personaIndex: i,
     }));
 
@@ -97,7 +97,7 @@ export default function PersonaCrowdSection({ C, mobile }) {
           const dy = agents[j].y - agents[i].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < agents[i].influenceRadius) {
-            const alpha = (1 - dist / agents[i].influenceRadius) * 0.08;
+            const alpha = (1 - dist / agents[i].influenceRadius) * 0.15;
             ctx.beginPath();
             ctx.moveTo(agents[i].x, agents[i].y);
             ctx.lineTo(agents[j].x, agents[j].y);

@@ -43,9 +43,18 @@ export default function PersonasPage() {
           </h1>
           <p className="text-text-muted mt-1 text-sm">Deine gespeicherten Zielgruppen</p>
         </div>
-        <Link href="/personas/new" className="btn-primary text-sm">
-          + Neue Zielgruppe
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/personas/generate" className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+            style={{ border: "1.5px solid var(--color-accent)", color: "var(--color-accent)" }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+            Aus Produkt generieren
+          </Link>
+          <Link href="/personas/new" className="btn-primary text-sm">
+            + Neue Zielgruppe
+          </Link>
+        </div>
       </div>
 
       {/* Empty State */}

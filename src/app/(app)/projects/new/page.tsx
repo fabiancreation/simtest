@@ -8,7 +8,7 @@ export default function NewProjectPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState(PROJECT_COLORS[0]);
+  const [color, setColor] = useState<string>(PROJECT_COLORS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 

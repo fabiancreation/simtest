@@ -352,11 +352,15 @@ function buildUserMessage(
   userContext?: string,
   focusQuestion?: string,
   audienceWarmth?: string,
+  projectContext?: string,
 ): string {
   const framing = getSimTypeFraming(simType, userContext, audienceWarmth);
   const warmth = getWarmthPrefix(audienceWarmth);
   // Warmth-Prefix ans Szenario hängen
   const scenario = warmth + framing.scenario;
+  const projectBlock = projectContext?.trim()
+    ? `\nHintergrund zum Anbieter: ${projectContext.trim()}\n`
+    : "";
   const contextBlock = userContext?.trim()
     ? `\nKontext: ${userContext.trim()}\n`
     : "";
@@ -368,7 +372,7 @@ function buildUserMessage(
     return `${scenario}:
 
 "${variant.content}"
-${contextBlock}${focusBlock}
+${projectBlock}${contextBlock}${focusBlock}
 Wie reagierst du ${framing.actionContext}?
 ${JSON_RESPONSE_FORMAT}`;
   }
@@ -378,7 +382,7 @@ ${JSON_RESPONSE_FORMAT}`;
   return `${framing.scenarioRepeat}:
 
 "${variant.content}"
-${contextBlock}${focusBlock}
+${projectBlock}${contextBlock}${focusBlock}
 ${neighborReactions.length > 0
     ? `Du siehst diese Reaktionen von Leuten die du kennst:\n${neighborReactions.join("\n")}\n`
     : "Bisher hat kaum jemand darauf reagiert."
@@ -491,6 +495,7 @@ async function simulateRound(
   userContext?: string,
   focusQuestion?: string,
   audienceWarmth?: string,
+  projectContext?: string,
 ): Promise<Reaction[]> {
   const BATCH_SIZE = 10;
   const reactions: Reaction[] = [];
@@ -501,7 +506,7 @@ async function simulateRound(
     const results = await Promise.allSettled(
       batch.map(async (agent) => {
         const variant = variants.find(v => v.id === agent.assignedVariant)!;
-        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext, focusQuestion, audienceWarmth);
+        const userMessage = buildUserMessage(agent, variant, round, previousReactions, agents, simType, userContext, focusQuestion, audienceWarmth, projectContext);
 
         const response = await withRetry(() => anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
@@ -938,17 +943,16 @@ Deno.serve(async (req) => {
 
     // 5. Multi-Runden-Simulation
     const allReactions: Reaction[] = [];
-    // Projektkontext + User-Kontext zusammenfuehren
+    // Projektkontext separat vom User-Kontext halten
     const projectContext = sim.input_data.project_context as string | undefined;
-    const rawContext = sim.input_data.context as string | undefined;
-    const userContext = [projectContext, rawContext].filter(Boolean).join("\n\n") || undefined;
+    const userContext = sim.input_data.context as string | undefined;
     const focusQuestion = sim.input_data.focus_question as string | undefined;
     const audienceWarmth = sim.input_data.audience_warmth as string | undefined;
 
     for (let round = 1; round <= totalRounds; round++) {
       await supabase.from("simulations").update({ current_round: round }).eq("id", simulationId);
 
-      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext, focusQuestion, audienceWarmth);
+      const roundReactions = await simulateRound(agents, variants, round, allReactions, sim.sim_type, userContext, focusQuestion, audienceWarmth, projectContext);
       allReactions.push(...roundReactions);
 
       // Reaktionen in DB speichern

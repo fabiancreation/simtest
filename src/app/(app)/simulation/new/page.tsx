@@ -300,16 +300,7 @@ export default function NewSimulationPage() {
           </div>
           <select
             value={projectId ?? ""}
-            onChange={(e) => {
-              const id = e.target.value || null;
-              setProjectId(id);
-              if (id) {
-                const proj = projects.find(p => p.id === id);
-                if (proj?.description && !context.trim()) {
-                  setContext(proj.description);
-                }
-              }
-            }}
+            onChange={(e) => setProjectId(e.target.value || null)}
             className="input cursor-pointer"
           >
             <option value="">Kein Projekt</option>
@@ -317,11 +308,19 @@ export default function NewSimulationPage() {
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          {projectId && (
-            <p className="text-xs text-text-dim mt-1.5">
-              Projektbeschreibung fliesst automatisch als Kontext in die Simulation ein.
-            </p>
-          )}
+          {projectId && (() => {
+            const proj = projects.find(p => p.id === projectId);
+            return proj?.description ? (
+              <p className="text-xs text-text-dim mt-1.5">
+                Projektbeschreibung fliesst als Hintergrund-Kontext in die Simulation ein. Das Kontext-Feld unten bleibt frei fuer simulationsspezifische Angaben.
+              </p>
+            ) : (
+              <p className="text-xs text-text-dim mt-1.5" style={{ color: "var(--color-warning)" }}>
+                Dieses Projekt hat noch keine Beschreibung.{" "}
+                <a href={`/projects/${projectId}`} className="underline">Hinzufuegen</a>
+              </p>
+            );
+          })()}
         </div>
       )}
 

@@ -148,6 +148,7 @@
 
 | # | Aufgabe | Beschreibung |
 |---|---------|-------------|
+| M1 | **Meta-Reports** | 2-5 Reports zusammenführen → Synthese über bestehende Synthesen. Konzept in `docs/META-REPORTS.md` |
 | S1 | **Stripe Integration** | Subscriptions, Webhooks, Plan-Upgrade |
 | S2 | **E-Mail-Notifications** | "Simulation fertig" per E-Mail |
 | S3 | **Headless Browser Crawling** | Für SPAs/React-Seiten die ohne JS keinen Content haben |

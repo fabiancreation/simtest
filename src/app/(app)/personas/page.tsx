@@ -16,23 +16,43 @@ interface PersonaProfile {
   age_min: number | null;
   age_max: number | null;
   regions: string[] | null;
+  project_id: string | null;
   created_at: string;
+}
+
+interface ProjectOption {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export default function PersonasPage() {
   const [profiles, setProfiles] = useState<PersonaProfile[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectFilter, setProjectFilter] = useState<string>("all");
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("persona_profiles")
-        .select("id, name, description, agent_count_default, priority, ai_estimated_fields, ai_confidence, platforms, age_min, age_max, regions, created_at")
-        .order("created_at", { ascending: false });
-      if (data) setProfiles(data);
+      const [{ data: personaData }, { data: projData }] = await Promise.all([
+        supabase.from("persona_profiles")
+          .select("id, name, description, agent_count_default, priority, ai_estimated_fields, ai_confidence, platforms, age_min, age_max, regions, project_id, created_at")
+          .order("created_at", { ascending: false }),
+        supabase.from("projects")
+          .select("id, name, color")
+          .order("name", { ascending: true }),
+      ]);
+      if (personaData) setProfiles(personaData);
+      if (projData) setProjects(projData);
     }
     load();
   }, []);
+
+  const filtered = profiles.filter(p => {
+    if (projectFilter === "none" && p.project_id !== null) return false;
+    if (projectFilter !== "all" && projectFilter !== "none" && p.project_id !== projectFilter) return false;
+    return true;
+  });
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -58,8 +78,26 @@ export default function PersonasPage() {
         </div>
       </div>
 
+      {/* Projekt-Filter */}
+      {projects.length > 0 && (
+        <div className="animate-slide-up" style={{ animationDelay: "30ms" }}>
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="input text-sm cursor-pointer"
+            style={{ minWidth: 160 }}
+          >
+            <option value="all">Alle Projekte</option>
+            <option value="none">Ohne Projekt</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Empty State */}
-      {profiles.length === 0 && (
+      {filtered.length === 0 && (
         <div className="card p-10 text-center animate-slide-up">
           <div className="icon-glow mx-auto mb-4" style={{ "--glow-color": "rgba(167,139,250,0.1)" } as React.CSSProperties}>
             <svg className="w-6 h-6 text-purple" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -78,9 +116,9 @@ export default function PersonasPage() {
       )}
 
       {/* Profile List */}
-      {profiles.length > 0 && (
+      {filtered.length > 0 && (
         <div className="space-y-3 stagger">
-          {profiles.map((p) => {
+          {filtered.map((p) => {
             const aiCount = p.ai_estimated_fields?.length ?? 0;
             return (
               <div key={p.id} className="card-interactive card p-5 cursor-pointer animate-slide-up">

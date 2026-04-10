@@ -724,8 +724,10 @@ Einwände: ${vObjections.join(" | ") || "keine"}`;
   // Original-Input für Kontext aufbereiten (damit Synthese nicht Dinge empfiehlt, die bereits existieren)
   let inputContext = "";
   if (inputData) {
+    const projCtx = inputData.project_context as string;
     const ctx = inputData.context as string;
     const focus = inputData.focus_question as string;
+    if (projCtx) inputContext += `\nPROJEKT-KONTEXT: ${projCtx}`;
     if (ctx) inputContext += `\nKONTEXT VOM NUTZER: ${ctx}`;
     if (focus) inputContext += `\nFOKUS-FRAGE: ${focus}`;
     // Strategy: volle Strategie-Details nur für die Synthese (Agenten sehen das nicht)
@@ -936,7 +938,10 @@ Deno.serve(async (req) => {
 
     // 5. Multi-Runden-Simulation
     const allReactions: Reaction[] = [];
-    const userContext = sim.input_data.context as string | undefined;
+    // Projektkontext + User-Kontext zusammenfuehren
+    const projectContext = sim.input_data.project_context as string | undefined;
+    const rawContext = sim.input_data.context as string | undefined;
+    const userContext = [projectContext, rawContext].filter(Boolean).join("\n\n") || undefined;
     const focusQuestion = sim.input_data.focus_question as string | undefined;
     const audienceWarmth = sim.input_data.audience_warmth as string | undefined;
 

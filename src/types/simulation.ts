@@ -139,6 +139,29 @@ export const AGENT_COUNT_HINTS: Record<number, string> = {
   1000: "Maximum: Sehr detailliert, dauert etwas länger",
 };
 
+// --- Project ---
+
+export const PROJECT_COLORS = [
+  "#6ee7b7", // Emerald (Default)
+  "#93c5fd", // Blue
+  "#c4b5fd", // Violet
+  "#fca5a1", // Red
+  "#fdba74", // Orange
+  "#fde047", // Yellow
+  "#86efac", // Green
+  "#f9a8d4", // Pink
+] as const;
+
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // --- Persona ---
 
 export interface Persona {

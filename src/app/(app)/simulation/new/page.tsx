@@ -50,6 +50,10 @@ export default function NewSimulationPage() {
   const searchParams = useSearchParams();
   const fromId = searchParams.get("from");
 
+  // Project state
+  const [projectId, setProjectId] = useState<string | null>(searchParams.get("project"));
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; description: string; color: string }>>([]);
+
   // Form state
   const [simType, setSimType] = useState<SimType>("copy");
   const [personaPreset, setPersonaPreset] = useState<string | null>(null);
@@ -93,15 +97,16 @@ export default function NewSimulationPage() {
 
   const config = SIM_TYPES[simType];
 
-  // Load custom persona profiles
+  // Load projects + custom persona profiles
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("persona_profiles")
-        .select("id, name, agent_count_default")
-        .order("created_at", { ascending: false });
-      if (data) setCustomProfiles(data);
+      const [{ data: projData }, { data: personaData }] = await Promise.all([
+        supabase.from("projects").select("id, name, description, color").order("created_at", { ascending: false }),
+        supabase.from("persona_profiles").select("id, name, agent_count_default").order("created_at", { ascending: false }),
+      ]);
+      if (projData) setProjects(projData);
+      if (personaData) setCustomProfiles(personaData);
     }
     load();
   }, []);
@@ -258,6 +263,7 @@ export default function NewSimulationPage() {
           agentCount,
           inputData,
           simDepth,
+          projectId,
         }),
       });
       const data = await res.json();
@@ -268,7 +274,7 @@ export default function NewSimulationPage() {
     } finally {
       setLoading(false);
     }
-  }, [simType, personaPreset, personaId, agentCount, variants, offer, priceSingle, priceVariants, adVariants, adPlatform, adFormat, urls, landingGoal, desiredAction, campaignBrief, campaignGoal, campaignChannels, crisisMessage, crisisType, crisisChannel, counterEnabled, counterMessage, strategyIdea, strategyMarket, strategyCompetitors, strategyPricing, focusQuestion, context, audienceWarmth, simDepth, config, router]);
+  }, [simType, personaPreset, personaId, agentCount, variants, offer, priceSingle, priceVariants, adVariants, adPlatform, adFormat, urls, landingGoal, desiredAction, campaignBrief, campaignGoal, campaignChannels, crisisMessage, crisisType, crisisChannel, counterEnabled, counterMessage, strategyIdea, strategyMarket, strategyCompetitors, strategyPricing, focusQuestion, context, audienceWarmth, simDepth, projectId, config, router]);
 
   return (
     <div className="max-w-[680px]">
@@ -281,6 +287,43 @@ export default function NewSimulationPage() {
           Konfiguriere deinen Test. SimTest passt die Felder an den gewählten Typ an.
         </p>
       </div>
+
+      {/* Projekt-Auswahl (optional) */}
+      {projects.length > 0 && (
+        <div className="mb-9 animate-slide-up">
+          <div className="flex items-center gap-2.5 mb-1">
+            <svg className="w-5 h-5 text-text-dim" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+            </svg>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-dim"
+              style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.08em" }}>PROJEKT</span>
+          </div>
+          <select
+            value={projectId ?? ""}
+            onChange={(e) => {
+              const id = e.target.value || null;
+              setProjectId(id);
+              if (id) {
+                const proj = projects.find(p => p.id === id);
+                if (proj?.description && !context.trim()) {
+                  setContext(proj.description);
+                }
+              }
+            }}
+            className="input cursor-pointer"
+          >
+            <option value="">Kein Projekt</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          {projectId && (
+            <p className="text-xs text-text-dim mt-1.5">
+              Projektbeschreibung fliesst automatisch als Kontext in die Simulation ein.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 1. Simulations-Typ */}
       <Section number={nextNum()} label="Simulations-Typ" hint="Wähle, was du testen willst - die Eingabefelder passen sich automatisch an">

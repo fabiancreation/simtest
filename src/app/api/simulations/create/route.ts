@@ -45,10 +45,11 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    simType, personaPreset, personaId, agentCount, inputData, simDepth,
+    simType, personaPreset, personaId, agentCount, inputData, simDepth, projectId,
   } = body as {
     simType: SimType; personaPreset: string | null; personaId: string | null;
     agentCount: number; inputData: Record<string, unknown>; simDepth: SimDepth;
+    projectId: string | null;
   };
 
   if (!simType || !inputData) {
@@ -105,6 +106,19 @@ export async function POST(request: Request) {
   const audiencePart = audienceLabel ? ` (${audienceLabel})` : "";
   const simName = `${typeLabel}${contentPart}${audiencePart}`;
 
+  // Projektkontext in input_data speichern (wenn Projekt gewaehlt)
+  if (projectId) {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("description")
+      .eq("id", projectId)
+      .eq("user_id", user.id)
+      .single();
+    if (project?.description) {
+      inputData.project_context = project.description;
+    }
+  }
+
   // Simulation anlegen (status: queued)
   const { data: simulation, error: simError } = await supabase
     .from("simulations")
@@ -119,6 +133,7 @@ export async function POST(request: Request) {
       sim_depth: simDepth ?? "balanced",
       status: "queued",
       estimated_cost: agentCount * (simDepth === "fast" ? 1 : simDepth === "deep" ? 5 : 3) * 0.00001,
+      project_id: projectId,
     })
     .select()
     .single();

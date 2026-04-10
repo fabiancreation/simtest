@@ -13,6 +13,13 @@ interface SimReport {
   created_at: string;
   completed_at: string | null;
   persona_preset: string | null;
+  project_id: string | null;
+}
+
+interface ProjectOption {
+  id: string;
+  name: string;
+  color: string;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -41,8 +48,10 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<SimReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
 
   async function handleDelete(id: string) {
     if (!confirm("Report wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
@@ -55,12 +64,17 @@ export default function ReportsPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("simulations")
-        .select("id, name, sim_type, status, agent_count, created_at, completed_at, persona_preset")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (data) setReports(data);
+      const [{ data: simData }, { data: projData }] = await Promise.all([
+        supabase.from("simulations")
+          .select("id, name, sim_type, status, agent_count, created_at, completed_at, persona_preset, project_id")
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supabase.from("projects")
+          .select("id, name, color")
+          .order("name", { ascending: true }),
+      ]);
+      if (simData) setReports(simData);
+      if (projData) setProjects(projData);
       setLoading(false);
     }
     load();
@@ -69,6 +83,8 @@ export default function ReportsPage() {
   // Filtern
   const filtered = reports.filter(r => {
     if (typeFilter !== "all" && r.sim_type !== typeFilter) return false;
+    if (projectFilter === "none" && r.project_id !== null) return false;
+    if (projectFilter !== "all" && projectFilter !== "none" && r.project_id !== projectFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const name = (r.name ?? "").toLowerCase();
@@ -114,6 +130,22 @@ export default function ReportsPage() {
             className="input text-sm w-full"
           />
         </div>
+
+        {/* Projekt-Filter */}
+        {projects.length > 0 && (
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="input text-sm cursor-pointer"
+            style={{ minWidth: 140 }}
+          >
+            <option value="all">Alle Projekte</option>
+            <option value="none">Ohne Projekt</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
 
         {/* Typ-Filter */}
         <div className="flex gap-1.5 flex-wrap">

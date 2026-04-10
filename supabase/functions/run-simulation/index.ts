@@ -834,8 +834,10 @@ Deno.serve(async (req) => {
     });
   }
 
+  let simulationId: string | undefined;
   try {
-    const { simulationId } = await req.json();
+    const body = await req.json();
+    simulationId = body.simulationId;
     if (!simulationId) throw new Error("simulationId fehlt");
 
     // 1. Simulation laden
@@ -1011,16 +1013,27 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-    console.error("Edge Function error:", message);
+    const stack = err instanceof Error ? err.stack : "";
+    console.error("Edge Function error:", message, stack);
 
-    try {
-      const { simulationId } = await req.clone().json();
-      if (simulationId) {
+    // simulationId aus dem bereits geparsten Body oder nochmal lesen
+    let simId = simulationId;
+    if (!simId) {
+      try {
+        const body = await req.clone().json();
+        simId = body.simulationId;
+      } catch { /* Body bereits gelesen */ }
+    }
+
+    if (simId) {
+      try {
         await supabase.from("simulations").update({
-          status: "failed", error_message: message,
-        }).eq("id", simulationId);
+          status: "failed", error_message: message.slice(0, 500),
+        }).eq("id", simId);
+      } catch (dbErr) {
+        console.error("Failed to update simulation status:", dbErr);
       }
-    } catch { /* ignore */ }
+    }
 
     return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { "Content-Type": "application/json" },

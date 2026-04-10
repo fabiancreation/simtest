@@ -155,6 +155,7 @@
 | S4 | **File-Uploads** | Ad Creative + Kampagne: Bild-Upload |
 | D1 | **Strategy Multi-Step** | Multi-Step Funnel-Simulation laut `docs/STRATEGY-REDESIGN.md` |
 | D2 | **"Nochmal testen"** | Sofort-Kopie einer Simulation mit identischem Input aber neuen Personas (1-Click Re-Run) |
+| I1 | **i18n (Englisch)** | ~1100 Strings, next-intl, EN-Prompts + EN-Presets. ~40-45h Aufwand. Plan in `docs/I18N-PLAN.md`. Nach Feature-Freeze umsetzen. |
 
 ---
 
